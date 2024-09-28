@@ -28,6 +28,9 @@ func (r *RunForTestingTest) Test(t *testing.T) {
 
 	minioClient := miniocontainer.RunForTesting(t, r.AvailableBuckets, r.InitialFiles)
 
+	_, err := minioClient.ListBuckets(ctx)
+	require.NoError(t, err)
+
 	for _, bucket := range r.AvailableBuckets {
 		exists, err := minioClient.BucketExists(ctx, bucket)
 		require.NoError(t, err)
