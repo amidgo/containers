@@ -7,11 +7,14 @@ import (
 	"os"
 	"testing"
 
+	"github.com/amidgo/containers"
 	redis "github.com/redis/go-redis/v9"
 	rediscontainer "github.com/testcontainers/testcontainers-go/modules/redis"
 )
 
 func RunForTesting(t *testing.T, initial map[string]any) *redis.Client {
+	containers.SkipDisabled(t)
+
 	redisClient, term, err := Run(initial)
 	t.Cleanup(term)
 

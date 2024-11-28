@@ -10,6 +10,7 @@ import (
 
 	"errors"
 
+	"github.com/amidgo/containers"
 	minioclient "github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/testcontainers/testcontainers-go/modules/minio"
@@ -22,6 +23,8 @@ type File struct {
 }
 
 func RunForTesting(t *testing.T, availableBuckets []string, initialFiles []File) *minioclient.Client {
+	containers.SkipDisabled(t)
+
 	minioClient, term, err := Run(availableBuckets, initialFiles)
 	t.Cleanup(term)
 

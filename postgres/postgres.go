@@ -8,6 +8,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/amidgo/containers"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -17,6 +18,8 @@ import (
 )
 
 func RunForTesting(t *testing.T, migrations Migrations, initialQueries ...string) *sql.DB {
+	containers.SkipDisabled(t)
+
 	db, term, err := Run(migrations, initialQueries...)
 	t.Cleanup(term)
 

@@ -11,11 +11,7 @@ import (
 func Test_RunRedis(t *testing.T) {
 	t.Parallel()
 
-	_, term, err := rediscontainer.Run(nil)
-	t.Cleanup(term)
-	if err != nil {
-		t.Fatalf("run container, %s", err)
-	}
+	_ = rediscontainer.RunForTesting(t, nil)
 }
 
 func Test_RunRedis_Initial(t *testing.T) {
@@ -23,14 +19,10 @@ func Test_RunRedis_Initial(t *testing.T) {
 
 	ctx := context.Background()
 
-	redisClient, term, err := rediscontainer.Run(map[string]any{
+	redisClient := rediscontainer.RunForTesting(t, map[string]any{
 		"key":     "value",
 		"integer": 1000,
 	})
-	t.Cleanup(term)
-	if err != nil {
-		t.Fatalf("run container, %s", err)
-	}
 
 	var (
 		stringValue  string
