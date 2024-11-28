@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"testing"
 
@@ -43,7 +44,13 @@ func (p PutFileError) Error() string {
 func Run(availableBuckets []string, initialFiles []File) (client *minioclient.Client, term func(), err error) {
 	ctx := context.Background()
 
-	minioContainer, err := minio.Run(ctx, "minio/minio:RELEASE.2024-01-16T16-07-38Z")
+	minioImage := "minio/minio:RELEASE.2024-01-16T16-07-38Z"
+
+	if img := os.Getenv("CONTAINERS_MINIO_IMAGE"); img != "" {
+		minioImage = img
+	}
+
+	minioContainer, err := minio.Run(ctx, minioImage)
 	if err != nil {
 		log.Fatalf("failed to start container: %s", err)
 	}

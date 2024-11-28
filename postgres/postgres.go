@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"os"
 	"testing"
 
 	"github.com/testcontainers/testcontainers-go"
@@ -33,8 +34,14 @@ func Run(migrations Migrations, initialQueries ...string) (db *sql.DB, term func
 	dbUser := "admin"
 	dbPassword := dbUser
 
+	postgresImage := "postgres:16-alpine"
+
+	if img := os.Getenv("CONTAINERS_POSTGRES_IMAGE"); img != "" {
+		postgresImage = img
+	}
+
 	postgresContainer, err := postgres.Run(ctx,
-		"docker.io/postgres:16-alpine",
+		postgresImage,
 		postgres.WithDatabase(dbName),
 		postgres.WithUsername(dbUser),
 		postgres.WithPassword(dbPassword),

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"testing"
 
 	redis "github.com/redis/go-redis/v9"
@@ -24,7 +25,13 @@ func RunForTesting(t *testing.T, initial map[string]any) *redis.Client {
 func Run(initial map[string]any) (redisClient *redis.Client, term func(), err error) {
 	ctx := context.Background()
 
-	redisContainer, err := rediscontainer.Run(ctx, "redis:6")
+	redisImage := "redis:6"
+
+	if img := os.Getenv("CONTAINERS_REDIS_IMAGE"); img != "" {
+		redisImage = img
+	}
+
+	redisContainer, err := rediscontainer.Run(ctx, redisImage)
 	if err != nil {
 		log.Fatalf("failed to start container: %s", err)
 	}
