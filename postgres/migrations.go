@@ -8,6 +8,7 @@ import (
 
 type Migrations interface {
 	Up(*sql.DB) error
+	Down(*sql.DB) error
 }
 
 type EmptyMigrations struct{}
@@ -28,4 +29,8 @@ func GooseMigrations(folder string) Migrations {
 
 func (g gooseMigrations) Up(db *sql.DB) error {
 	return goose.Up(db, g.folder)
+}
+
+func (g gooseMigrations) Down(db *sql.DB) error {
+	return goose.Down(db, g.folder)
 }
