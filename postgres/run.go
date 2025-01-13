@@ -64,7 +64,7 @@ func run(ctx context.Context, ccf createConatainerFunc, migrations Migrations, i
 		return nil, term, fmt.Errorf("open connection, %w", err)
 	}
 
-	err = migrations.Up(db)
+	err = migrations.UpContext(ctx, db)
 	if err != nil {
 		return db, term, err
 	}

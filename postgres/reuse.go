@@ -80,7 +80,7 @@ func (r *Reuseable) reuse(ctx context.Context, migrations Migrations, initialQue
 		return nil, term, fmt.Errorf("open connection to specific schema, schema_name=%s, %w", schemaName, err)
 	}
 
-	err = migrations.Up(db)
+	err = migrations.UpContext(ctx, db)
 	if err != nil {
 		return db, term, err
 	}
