@@ -1,6 +1,6 @@
 -- +goose Up
 -- +goose StatementBegin
-CREATE TABLE IF NOT EXISTS users (
+CREATE TABLE users (
     id serial primary key,
     name varchar
 );
