@@ -7,4 +7,4 @@ type postgresContainer interface {
 	Terminate(ctx context.Context) error
 }
 
-type createConatainerFunc func(ctx context.Context) (postgresContainer, error)
+type CreateContainerFunc func(ctx context.Context) (postgresContainer, error)

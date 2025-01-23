@@ -14,8 +14,16 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 
 	//nolint:revive // need for launch container
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
+
+func closeDB(db *sql.DB) func() {
+	return func() {
+		_ = db.Close()
+	}
+}
 
 func RunForTesting(t *testing.T, migrations Migrations, initialQueries ...string) *sql.DB {
 	containers.SkipDisabled(t)
@@ -24,6 +32,7 @@ func RunForTesting(t *testing.T, migrations Migrations, initialQueries ...string
 	t.Cleanup(cancel)
 
 	db, term, err := RunContext(ctx, migrations, initialQueries...)
+	t.Cleanup(closeDB(db))
 	t.Cleanup(term)
 
 	if err != nil {
@@ -38,35 +47,38 @@ func Run(migrations Migrations, initialQueries ...string) (db *sql.DB, term func
 }
 
 func RunContext(ctx context.Context, migrations Migrations, initialQueries ...string) (db *sql.DB, term func(), err error) {
-	return run(ctx, runContainer, migrations, initialQueries...)
+	return run(ctx, RunContainer, migrations, initialQueries...)
 }
 
-func run(ctx context.Context, ccf createConatainerFunc, migrations Migrations, initialQueries ...string) (db *sql.DB, term func(), err error) {
-	postgresContainer, err := runContainer(ctx)
+func run(ctx context.Context, ccf CreateContainerFunc, migrations Migrations, initialQueries ...string) (db *sql.DB, term func(), err error) {
+	pgCnt, err := ccf(ctx)
 	if err != nil {
 		return nil, func() {}, err
 	}
 
 	// Clean up the container
 	term = func() {
-		if err := postgresContainer.Terminate(ctx); err != nil {
-			log.Printf("failed to terminate container: %s", err)
+		terminateErr := pgCnt.Terminate(ctx)
+		if terminateErr != nil {
+			log.Printf("failed to terminate container: %s", terminateErr)
 		}
 	}
 
-	connString, err := postgresContainer.ConnectionString(ctx, "sslmode=disable")
+	connString, err := pgCnt.ConnectionString(ctx, "sslmode=disable")
 	if err != nil {
 		return nil, term, fmt.Errorf("get connection string, %w", err)
 	}
 
-	db, err = sql.Open("pgx", connString)
+	conn, err := pgxpool.New(ctx, connString)
 	if err != nil {
 		return nil, term, fmt.Errorf("open connection, %w", err)
 	}
 
+	db = stdlib.OpenDBFromPool(conn)
+
 	err = migrations.UpContext(ctx, db)
 	if err != nil {
-		return db, term, err
+		return db, term, fmt.Errorf("up migrations, %w", err)
 	}
 
 	for _, initialQuery := range initialQueries {
@@ -79,7 +91,7 @@ func run(ctx context.Context, ccf createConatainerFunc, migrations Migrations, i
 	return db, term, nil
 }
 
-func runContainer(ctx context.Context) (postgresContainer, error) {
+func RunContainer(ctx context.Context) (postgresContainer, error) {
 	dbName := "test"
 	dbUser := "admin"
 	dbPassword := dbUser
