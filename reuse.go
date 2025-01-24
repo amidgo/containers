@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strconv"
 	"time"
 )
 
@@ -13,14 +14,6 @@ const (
 	reuseCommandEnter reuseCommand = iota
 	reuseCommandExit
 )
-
-type invalidReuseCommandError struct {
-	cmd reuseCommand
-}
-
-func (i invalidReuseCommandError) Error() string {
-	return fmt.Sprintf("invalid reuse command: %d", i.cmd)
-}
 
 type reuseContainerRequest struct {
 	reuseCmd reuseCommand
@@ -90,11 +83,7 @@ func (d *ReuseDaemon) handleReuseCommand(ctx context.Context, reuseCmd reuseComm
 	case reuseCommandExit:
 		d.activeUsers--
 	default:
-		d.respCh <- reuseContainerResponse{
-			err: invalidReuseCommandError{cmd: reuseCmd},
-		}
-
-		return
+		panic("invalid reuse command received: " + strconv.FormatUint(uint64(reuseCmd), 10))
 	}
 
 	switch {
@@ -144,9 +133,7 @@ func (d *ReuseDaemon) handleZeroActiveUsers(ctx context.Context) {
 		case reuseCommandExit:
 			panic("unexpected exit command in handleZeroActiveUsers")
 		default:
-			d.respCh <- reuseContainerResponse{
-				err: invalidReuseCommandError{cmd: req.reuseCmd},
-			}
+			panic("invalid reuse command received: " + strconv.FormatUint(uint64(req.reuseCmd), 10))
 		}
 	}
 }
