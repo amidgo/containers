@@ -8,6 +8,8 @@ import (
 )
 
 func Test_ReuseForTesting(t *testing.T) {
+	t.Parallel()
+
 	t.Run("GlobalReuseable", testReuse(postgrescontainer.GlobalReusable()))
 	t.Run("NewReuseable_RunContainer", testReuse(postgrescontainer.NewReusable(postgrescontainer.RunContainer)))
 }
