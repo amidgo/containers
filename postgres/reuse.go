@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -23,15 +22,11 @@ var (
 	globalReusable = Reuseable{
 		ccf:          RunContainer,
 		waitDuration: defaultDuration,
-		recvCh:       make(chan reuseContainerResponse),
-		sendCh:       make(chan reuseContainerRequest),
 	}
 
 	globalEnvReusable = Reuseable{
 		ccf:          EnvContainer,
 		waitDuration: defaultDuration,
-		recvCh:       make(chan reuseContainerResponse),
-		sendCh:       make(chan reuseContainerRequest),
 	}
 )
 
@@ -55,8 +50,6 @@ func NewReusable(ccf CreateContainerFunc, opts ...ReuseableOption) *Reuseable {
 	r := &Reuseable{
 		ccf:          ccf,
 		waitDuration: defaultDuration,
-		recvCh:       make(chan reuseContainerResponse),
-		sendCh:       make(chan reuseContainerRequest),
 	}
 
 	for _, op := range opts {
@@ -66,139 +59,23 @@ func NewReusable(ccf CreateContainerFunc, opts ...ReuseableOption) *Reuseable {
 	return r
 }
 
-type reuseCommand uint8
-
-const (
-	reuseCommandEnter reuseCommand = iota
-	reuseCommandExit
-)
-
-type reuseContainerRequest struct {
-	reuseCmd reuseCommand
-	ctx      context.Context
-}
-
-type invalidReuseCommandError struct {
-	cmd reuseCommand
-}
-
-func (i invalidReuseCommandError) Error() string {
-	return fmt.Sprintf("invalid reuse command: %d", i.cmd)
-}
-
-type reuseContainerResponse struct {
-	pgCnt postgresContainer
-	err   error
-}
-
 type Reuseable struct {
 	runDaemonOnce sync.Once
 	ccf           CreateContainerFunc
 	schemaCounter atomic.Int64
-
-	sendCh chan reuseContainerRequest
-	recvCh chan reuseContainerResponse
+	dm            *containers.ReuseDaemon
 
 	waitDuration time.Duration
-}
-
-type daemon struct {
-	activeUsers  int
-	pgCnt        postgresContainer
-	waitDuration time.Duration
-
-	recvCh chan reuseContainerRequest
-	sendCh chan reuseContainerResponse
-
-	ccf CreateContainerFunc
-}
-
-func (d *daemon) run() {
-	for req := range d.recvCh {
-		d.handleReuseCommand(req.ctx, req.reuseCmd)
-	}
-}
-
-func (d *daemon) handleReuseCommand(ctx context.Context, reuseCmd reuseCommand) {
-	switch reuseCmd {
-	case reuseCommandEnter:
-		d.activeUsers++
-	case reuseCommandExit:
-		d.activeUsers--
-	default:
-		d.sendCh <- reuseContainerResponse{
-			err: invalidReuseCommandError{cmd: reuseCmd},
-		}
-
-		return
-	}
-
-	switch {
-	case d.activeUsers > 0:
-		d.handlePositiveActiveUsers(ctx)
-	case d.activeUsers == 0:
-		d.handleZeroActiveUsers(ctx)
-	case d.activeUsers <= 0:
-		panic("reuse container term func called twice, negative amount of active users")
-	}
-}
-
-func (d *daemon) handlePositiveActiveUsers(ctx context.Context) {
-	if d.pgCnt == nil {
-		pgCnt, err := d.ccf(ctx)
-		if err != nil {
-			d.sendCh <- reuseContainerResponse{
-				err: fmt.Errorf("create new container, %w", err),
-			}
-
-			return
-		}
-
-		d.pgCnt = pgCnt
-	}
-
-	d.sendCh <- reuseContainerResponse{
-		pgCnt: d.pgCnt,
-	}
-}
-
-func (d *daemon) handleZeroActiveUsers(ctx context.Context) {
-	select {
-	case <-time.After(d.waitDuration):
-		d.clearContainer(ctx)
-		d.sendCh <- reuseContainerResponse{}
-	case req := <-d.recvCh:
-		switch req.reuseCmd {
-		case reuseCommandEnter:
-			d.activeUsers++
-		case reuseCommandExit:
-			panic("unexpected exit command in handleZeroActiveUsers")
-		default:
-			d.sendCh <- reuseContainerResponse{
-				err: invalidReuseCommandError{cmd: req.reuseCmd},
-			}
-		}
-	}
-}
-
-func (d *daemon) clearContainer(ctx context.Context) {
-	err := d.pgCnt.Terminate(ctx)
-	if err != nil {
-		log.Printf("failed terminate container, %s", err)
-	}
-
-	d.pgCnt = nil
 }
 
 func (r *Reuseable) runDaemon() {
-	daemon := daemon{
-		waitDuration: r.waitDuration,
-		recvCh:       r.sendCh,
-		sendCh:       r.recvCh,
-		ccf:          r.ccf,
+	ccf := func(ctx context.Context) (any, error) {
+		return r.ccf(ctx)
 	}
 
-	go daemon.run()
+	r.dm = containers.NewReuseDaemon(r.waitDuration, ccf)
+
+	go r.dm.Run()
 }
 
 func (r *Reuseable) runContext(ctx context.Context, migrations Migrations, initialQueries ...string) (db *sql.DB, term func(), err error) {
@@ -218,7 +95,7 @@ func (r *Reuseable) runContext(ctx context.Context, migrations Migrations, initi
 }
 
 func (r *Reuseable) reuse(ctx context.Context, pgCnt postgresContainer, migrations Migrations, initialQueries ...string) (db *sql.DB, term func(), err error) {
-	term = r.exit
+	term = r.dm.Exit
 
 	schemaName, err := r.createNewSchemaInContainer(ctx, pgCnt)
 	if err != nil {
@@ -228,6 +105,11 @@ func (r *Reuseable) reuse(ctx context.Context, pgCnt postgresContainer, migratio
 	db, err = connectToSchema(ctx, pgCnt, schemaName)
 	if err != nil {
 		return db, term, err
+	}
+
+	term = func() {
+		_ = db.Close()
+		r.dm.Exit()
 	}
 
 	err = migrations.UpContext(ctx, db)
@@ -298,23 +180,12 @@ func connectToSchema(ctx context.Context, pgCnt postgresContainer, schemaName st
 }
 
 func (r *Reuseable) enter(ctx context.Context) (postgresContainer, error) {
-	r.sendCh <- reuseContainerRequest{
-		ctx:      ctx,
-		reuseCmd: reuseCommandEnter,
+	cnt, err := r.dm.Enter(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	resp := <-r.recvCh
-
-	return resp.pgCnt, resp.err
-}
-
-func (r *Reuseable) exit() {
-	r.sendCh <- reuseContainerRequest{
-		ctx:      context.Background(),
-		reuseCmd: reuseCommandExit,
-	}
-
-	<-r.recvCh
+	return cnt.(postgresContainer), nil
 }
 
 func ReuseForTesting(t *testing.T, reuse *Reuseable, migrations Migrations, initialQueries ...string) *sql.DB {
@@ -324,7 +195,6 @@ func ReuseForTesting(t *testing.T, reuse *Reuseable, migrations Migrations, init
 	t.Cleanup(cancel)
 
 	db, term, err := ReuseContext(ctx, reuse, migrations, initialQueries...)
-	t.Cleanup(closeDB(db))
 	t.Cleanup(term)
 
 	if err != nil {

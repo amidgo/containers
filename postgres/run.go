@@ -19,12 +19,6 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-func closeDB(db *sql.DB) func() {
-	return func() {
-		_ = db.Close()
-	}
-}
-
 func RunForTesting(t *testing.T, migrations Migrations, initialQueries ...string) *sql.DB {
 	containers.SkipDisabled(t)
 
@@ -32,7 +26,6 @@ func RunForTesting(t *testing.T, migrations Migrations, initialQueries ...string
 	t.Cleanup(cancel)
 
 	db, term, err := RunContext(ctx, migrations, initialQueries...)
-	t.Cleanup(closeDB(db))
 	t.Cleanup(term)
 
 	if err != nil {
@@ -75,6 +68,15 @@ func run(ctx context.Context, ccf CreateContainerFunc, migrations Migrations, in
 	}
 
 	db = stdlib.OpenDBFromPool(conn)
+
+	term = func() {
+		_ = db.Close()
+
+		terminateErr := pgCnt.Terminate(ctx)
+		if terminateErr != nil {
+			log.Printf("failed to terminate container: %s", terminateErr)
+		}
+	}
 
 	err = migrations.UpContext(ctx, db)
 	if err != nil {

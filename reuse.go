@@ -1,0 +1,162 @@
+package containers
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"time"
+)
+
+type reuseCommand uint8
+
+const (
+	reuseCommandEnter reuseCommand = iota
+	reuseCommandExit
+)
+
+type invalidReuseCommandError struct {
+	cmd reuseCommand
+}
+
+func (i invalidReuseCommandError) Error() string {
+	return fmt.Sprintf("invalid reuse command: %d", i.cmd)
+}
+
+type reuseContainerRequest struct {
+	reuseCmd reuseCommand
+	ctx      context.Context
+}
+
+type reuseContainerResponse struct {
+	pgCnt any
+	err   error
+}
+
+type CreateContainerFunc func(ctx context.Context) (any, error)
+
+type ReuseDaemon struct {
+	activeUsers  int
+	cnt          any
+	waitDuration time.Duration
+
+	reqCh  chan reuseContainerRequest
+	respCh chan reuseContainerResponse
+
+	ccf CreateContainerFunc
+}
+
+func NewReuseDaemon(
+	waitDuration time.Duration,
+	ccf CreateContainerFunc,
+) *ReuseDaemon {
+	return &ReuseDaemon{
+		waitDuration: waitDuration,
+		reqCh:        make(chan reuseContainerRequest),
+		respCh:       make(chan reuseContainerResponse),
+		ccf:          ccf,
+	}
+}
+
+func (d *ReuseDaemon) Run() {
+	for req := range d.reqCh {
+		d.handleReuseCommand(req.ctx, req.reuseCmd)
+	}
+}
+
+func (d *ReuseDaemon) Enter(ctx context.Context) (any, error) {
+	d.reqCh <- reuseContainerRequest{
+		ctx:      ctx,
+		reuseCmd: reuseCommandEnter,
+	}
+
+	resp := <-d.respCh
+
+	return resp.pgCnt, resp.err
+}
+
+func (d *ReuseDaemon) Exit() {
+	d.reqCh <- reuseContainerRequest{
+		ctx:      context.Background(),
+		reuseCmd: reuseCommandExit,
+	}
+
+	<-d.respCh
+}
+
+func (d *ReuseDaemon) handleReuseCommand(ctx context.Context, reuseCmd reuseCommand) {
+	switch reuseCmd {
+	case reuseCommandEnter:
+		d.activeUsers++
+	case reuseCommandExit:
+		d.activeUsers--
+	default:
+		d.respCh <- reuseContainerResponse{
+			err: invalidReuseCommandError{cmd: reuseCmd},
+		}
+
+		return
+	}
+
+	switch {
+	case d.activeUsers > 0:
+		d.handlePositiveActiveUsers(ctx)
+	case d.activeUsers == 0:
+		d.handleZeroActiveUsers(ctx)
+	case d.activeUsers <= 0:
+		panic("reuse container term func called twice, negative amount of active users")
+	}
+}
+
+func (d *ReuseDaemon) handlePositiveActiveUsers(ctx context.Context) {
+	if d.cnt == nil {
+		pgCnt, err := d.ccf(ctx)
+		if err != nil {
+			d.respCh <- reuseContainerResponse{
+				err: fmt.Errorf("create new container, %w", err),
+			}
+
+			return
+		}
+
+		d.cnt = pgCnt
+	}
+
+	d.respCh <- reuseContainerResponse{
+		pgCnt: d.cnt,
+	}
+}
+
+func (d *ReuseDaemon) handleZeroActiveUsers(ctx context.Context) {
+	select {
+	case <-time.After(d.waitDuration):
+		d.clearContainer(ctx)
+		d.respCh <- reuseContainerResponse{}
+	case req := <-d.reqCh:
+		switch req.reuseCmd {
+		case reuseCommandEnter:
+			d.activeUsers++
+		case reuseCommandExit:
+			panic("unexpected exit command in handleZeroActiveUsers")
+		default:
+			d.respCh <- reuseContainerResponse{
+				err: invalidReuseCommandError{cmd: req.reuseCmd},
+			}
+		}
+	}
+}
+
+func (d *ReuseDaemon) clearContainer(ctx context.Context) {
+	type Terminater interface {
+		Terminate(ctx context.Context) error
+	}
+
+	trm, ok := d.cnt.(Terminater)
+	if ok {
+		err := trm.Terminate(ctx)
+		if err != nil {
+			log.Printf("failed terminate container, %s", err)
+		}
+	}
+
+	d.cnt = nil
+}
