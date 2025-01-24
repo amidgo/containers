@@ -28,8 +28,8 @@ type reuseContainerRequest struct {
 }
 
 type reuseContainerResponse struct {
-	pgCnt any
-	err   error
+	cnt any
+	err error
 }
 
 type CreateContainerFunc func(ctx context.Context) (any, error)
@@ -71,7 +71,7 @@ func (d *ReuseDaemon) Enter(ctx context.Context) (any, error) {
 
 	resp := <-d.respCh
 
-	return resp.pgCnt, resp.err
+	return resp.cnt, resp.err
 }
 
 func (d *ReuseDaemon) Exit() {
@@ -109,7 +109,7 @@ func (d *ReuseDaemon) handleReuseCommand(ctx context.Context, reuseCmd reuseComm
 
 func (d *ReuseDaemon) handlePositiveActiveUsers(ctx context.Context) {
 	if d.cnt == nil {
-		pgCnt, err := d.ccf(ctx)
+		cnt, err := d.ccf(ctx)
 		if err != nil {
 			d.respCh <- reuseContainerResponse{
 				err: fmt.Errorf("create new container, %w", err),
@@ -118,11 +118,11 @@ func (d *ReuseDaemon) handlePositiveActiveUsers(ctx context.Context) {
 			return
 		}
 
-		d.cnt = pgCnt
+		d.cnt = cnt
 	}
 
 	d.respCh <- reuseContainerResponse{
-		pgCnt: d.cnt,
+		cnt: d.cnt,
 	}
 }
 
