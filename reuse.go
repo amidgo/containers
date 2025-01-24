@@ -135,6 +135,12 @@ func (d *ReuseDaemon) handleZeroActiveUsers(ctx context.Context) {
 		switch req.reuseCmd {
 		case reuseCommandEnter:
 			d.activeUsers++
+			d.respCh <- reuseContainerResponse{
+				cnt: d.cnt,
+			}
+			d.respCh <- reuseContainerResponse{
+				cnt: d.cnt,
+			}
 		case reuseCommandExit:
 			panic("unexpected exit command in handleZeroActiveUsers")
 		default:
