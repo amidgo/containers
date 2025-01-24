@@ -50,9 +50,14 @@ func NewReuseDaemon(
 	}
 }
 
-func (d *ReuseDaemon) Run() {
-	for req := range d.reqCh {
-		d.handleReuseCommand(req.ctx, req.reuseCmd)
+func (d *ReuseDaemon) Run(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case req := <-d.reqCh:
+			d.handleReuseCommand(req.ctx, req.reuseCmd)
+		}
 	}
 }
 
