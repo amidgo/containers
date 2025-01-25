@@ -14,28 +14,19 @@ import (
 	"github.com/jackc/pgx/v5/stdlib"
 )
 
-const (
-	defaultDuration = time.Second
-)
+const defaultDuration = time.Second
 
 var (
-	globalReusable = Reusable{
-		ccf:          RunContainer,
-		waitDuration: defaultDuration,
-	}
-
-	globalEnvReusable = Reusable{
-		ccf:          EnvContainer,
-		waitDuration: defaultDuration,
-	}
+	globalReusable    = NewReusable(RunContainer)
+	globalEnvReusable = NewReusable(EnvContainer)
 )
 
 func GlobalReusable() *Reusable {
-	return &globalReusable
+	return globalReusable
 }
 
 func GlobalEnvReusable() *Reusable {
-	return &globalEnvReusable
+	return globalEnvReusable
 }
 
 type ReusableOption func(r *Reusable)
