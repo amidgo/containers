@@ -73,9 +73,9 @@ func (r *Reuseable) runDaemon() {
 		return r.ccf(ctx)
 	}
 
-	r.dm = containers.NewReuseDaemon(r.waitDuration, ccf)
+	daemon := containers.RunReuseDaemon(context.Background(), r.waitDuration, ccf)
 
-	go r.dm.Run(context.Background())
+	r.dm = daemon
 }
 
 func (r *Reuseable) runContext(ctx context.Context, migrations Migrations, initialQueries ...string) (db *sql.DB, term func(), err error) {

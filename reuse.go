@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"sync/atomic"
 	"time"
 )
 
@@ -31,6 +32,9 @@ type ReuseDaemon struct {
 	activeUsers  int
 	cnt          any
 	waitDuration time.Duration
+	stopped      atomic.Bool
+	mainCtx      context.Context
+	termCtx      context.Context
 
 	reqCh  chan reuseContainerRequest
 	respCh chan reuseContainerResponse
@@ -38,47 +42,63 @@ type ReuseDaemon struct {
 	ccf CreateContainerFunc
 }
 
-func NewReuseDaemon(
+func RunReuseDaemon(
+	ctx context.Context,
 	waitDuration time.Duration,
 	ccf CreateContainerFunc,
 ) *ReuseDaemon {
-	return &ReuseDaemon{
+	termCtx, cancel := context.WithCancel(context.Background())
+
+	daemon := &ReuseDaemon{
 		waitDuration: waitDuration,
 		reqCh:        make(chan reuseContainerRequest),
 		respCh:       make(chan reuseContainerResponse),
 		ccf:          ccf,
+		mainCtx:      ctx,
+		termCtx:      termCtx,
 	}
-}
 
-func (d *ReuseDaemon) Run(ctx context.Context) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case req := <-d.reqCh:
-			d.handleReuseCommand(req.ctx, req.reuseCmd)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				daemon.clearContainer(termCtx)
+				cancel()
+
+				return
+			case req := <-daemon.reqCh:
+				daemon.handleReuseCommand(req.ctx, req.reuseCmd)
+			}
 		}
-	}
+	}()
+
+	return daemon
 }
 
 func (d *ReuseDaemon) Enter(ctx context.Context) (any, error) {
-	d.reqCh <- reuseContainerRequest{
+	select {
+	case <-d.mainCtx.Done():
+		return nil, fmt.Errorf("root ctx is done, %w", context.Cause(d.mainCtx))
+	case d.reqCh <- reuseContainerRequest{
 		ctx:      ctx,
 		reuseCmd: reuseCommandEnter,
+	}:
+		resp := <-d.respCh
+
+		return resp.cnt, resp.err
 	}
-
-	resp := <-d.respCh
-
-	return resp.cnt, resp.err
 }
 
 func (d *ReuseDaemon) Exit() {
-	d.reqCh <- reuseContainerRequest{
+	select {
+	case <-d.mainCtx.Done():
+		<-d.termCtx.Done()
+	case d.reqCh <- reuseContainerRequest{
 		ctx:      context.Background(),
 		reuseCmd: reuseCommandExit,
+	}:
+		<-d.respCh
 	}
-
-	<-d.respCh
 }
 
 func (d *ReuseDaemon) handleReuseCommand(ctx context.Context, reuseCmd reuseCommand) {
@@ -144,6 +164,10 @@ func (d *ReuseDaemon) handleZeroActiveUsers(ctx context.Context) {
 }
 
 func (d *ReuseDaemon) clearContainer(ctx context.Context) {
+	if d.cnt == nil {
+		return
+	}
+
 	type Terminater interface {
 		Terminate(ctx context.Context) error
 	}
