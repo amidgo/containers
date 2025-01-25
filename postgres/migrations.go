@@ -8,14 +8,7 @@ import (
 )
 
 type Migrations interface {
-	Up(db *sql.DB) error
 	UpContext(ctx context.Context, db *sql.DB) error
-}
-
-type EmptyMigrations struct{}
-
-func (EmptyMigrations) Up(*sql.DB) error {
-	return nil
 }
 
 type gooseMigrations struct {
@@ -32,6 +25,10 @@ func (g gooseMigrations) UpContext(ctx context.Context, db *sql.DB) error {
 	return goose.UpContext(ctx, db, g.folder)
 }
 
-func (g gooseMigrations) Up(db *sql.DB) error {
-	return goose.Up(db, g.folder)
+var EmptyMigrations Migrations = emptyMigrations{}
+
+type emptyMigrations struct{}
+
+func (emptyMigrations) UpContext(context.Context, *sql.DB) error {
+	return nil
 }

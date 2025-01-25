@@ -28,7 +28,7 @@ type reuseContainerResponse struct {
 
 type CreateContainerFunc func(ctx context.Context) (any, error)
 
-type ReuseDaemon struct {
+type ReusableDaemon struct {
 	activeUsers  int
 	cnt          any
 	waitDuration time.Duration
@@ -42,14 +42,14 @@ type ReuseDaemon struct {
 	ccf CreateContainerFunc
 }
 
-func RunReuseDaemon(
+func RunReusableDaemon(
 	ctx context.Context,
 	waitDuration time.Duration,
 	ccf CreateContainerFunc,
-) *ReuseDaemon {
+) *ReusableDaemon {
 	termCtx, cancel := context.WithCancel(context.Background())
 
-	daemon := &ReuseDaemon{
+	daemon := &ReusableDaemon{
 		waitDuration: waitDuration,
 		reqCh:        make(chan reuseContainerRequest),
 		respCh:       make(chan reuseContainerResponse),
@@ -75,7 +75,11 @@ func RunReuseDaemon(
 	return daemon
 }
 
-func (d *ReuseDaemon) Enter(ctx context.Context) (any, error) {
+func (d *ReusableDaemon) Done() <-chan struct{} {
+	return d.termCtx.Done()
+}
+
+func (d *ReusableDaemon) Enter(ctx context.Context) (any, error) {
 	select {
 	case <-d.mainCtx.Done():
 		return nil, fmt.Errorf("root ctx is done, %w", context.Cause(d.mainCtx))
@@ -89,7 +93,7 @@ func (d *ReuseDaemon) Enter(ctx context.Context) (any, error) {
 	}
 }
 
-func (d *ReuseDaemon) Exit() {
+func (d *ReusableDaemon) Exit() {
 	select {
 	case <-d.mainCtx.Done():
 		<-d.termCtx.Done()
@@ -101,7 +105,7 @@ func (d *ReuseDaemon) Exit() {
 	}
 }
 
-func (d *ReuseDaemon) handleReuseCommand(ctx context.Context, reuseCmd reuseCommand) {
+func (d *ReusableDaemon) handleReuseCommand(ctx context.Context, reuseCmd reuseCommand) {
 	switch reuseCmd {
 	case reuseCommandEnter:
 		d.activeUsers++
@@ -121,7 +125,7 @@ func (d *ReuseDaemon) handleReuseCommand(ctx context.Context, reuseCmd reuseComm
 	}
 }
 
-func (d *ReuseDaemon) handlePositiveActiveUsers(ctx context.Context) {
+func (d *ReusableDaemon) handlePositiveActiveUsers(ctx context.Context) {
 	if d.cnt == nil {
 		cnt, err := d.ccf(ctx)
 		if err != nil {
@@ -140,7 +144,7 @@ func (d *ReuseDaemon) handlePositiveActiveUsers(ctx context.Context) {
 	}
 }
 
-func (d *ReuseDaemon) handleZeroActiveUsers(ctx context.Context) {
+func (d *ReusableDaemon) handleZeroActiveUsers(ctx context.Context) {
 	select {
 	case <-time.After(d.waitDuration):
 		d.clearContainer(ctx)
@@ -163,7 +167,7 @@ func (d *ReuseDaemon) handleZeroActiveUsers(ctx context.Context) {
 	}
 }
 
-func (d *ReuseDaemon) clearContainer(ctx context.Context) {
+func (d *ReusableDaemon) clearContainer(ctx context.Context) {
 	if d.cnt == nil {
 		return
 	}

@@ -19,35 +19,35 @@ const (
 )
 
 var (
-	globalReusable = Reuseable{
+	globalReusable = Reusable{
 		ccf:          RunContainer,
 		waitDuration: defaultDuration,
 	}
 
-	globalEnvReusable = Reuseable{
+	globalEnvReusable = Reusable{
 		ccf:          EnvContainer,
 		waitDuration: defaultDuration,
 	}
 )
 
-func GlobalReusable() *Reuseable {
+func GlobalReusable() *Reusable {
 	return &globalReusable
 }
 
-func GlobalEnvReusable() *Reuseable {
+func GlobalEnvReusable() *Reusable {
 	return &globalEnvReusable
 }
 
-type ReuseableOption func(r *Reuseable)
+type ReusableOption func(r *Reusable)
 
-var WithWaitDuration = func(duration time.Duration) ReuseableOption {
-	return func(r *Reuseable) {
+func WithWaitDuration(duration time.Duration) ReusableOption {
+	return func(r *Reusable) {
 		r.waitDuration = duration
 	}
 }
 
-func NewReusable(ccf CreateContainerFunc, opts ...ReuseableOption) *Reuseable {
-	r := &Reuseable{
+func NewReusable(ccf CreateContainerFunc, opts ...ReusableOption) *Reusable {
+	r := &Reusable{
 		ccf:          ccf,
 		waitDuration: defaultDuration,
 	}
@@ -59,26 +59,41 @@ func NewReusable(ccf CreateContainerFunc, opts ...ReuseableOption) *Reuseable {
 	return r
 }
 
-type Reuseable struct {
+type Reusable struct {
 	runDaemonOnce sync.Once
 	ccf           CreateContainerFunc
 	schemaCounter atomic.Int64
-	dm            *containers.ReuseDaemon
+	dm            *containers.ReusableDaemon
+	stopDaemon    context.CancelFunc
 
 	waitDuration time.Duration
 }
 
-func (r *Reuseable) runDaemon() {
+func (r *Reusable) runDaemon() {
 	ccf := func(ctx context.Context) (any, error) {
 		return r.ccf(ctx)
 	}
 
-	daemon := containers.RunReuseDaemon(context.Background(), r.waitDuration, ccf)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	daemon := containers.RunReusableDaemon(ctx, r.waitDuration, ccf)
 
 	r.dm = daemon
+	r.stopDaemon = cancel
 }
 
-func (r *Reuseable) runContext(ctx context.Context, migrations Migrations, initialQueries ...string) (db *sql.DB, term func(), err error) {
+func (r *Reusable) Terminate(ctx context.Context) error {
+	r.stopDaemon()
+
+	select {
+	case <-r.dm.Done():
+		return nil
+	case <-ctx.Done():
+		return context.Cause(ctx)
+	}
+}
+
+func (r *Reusable) runContext(ctx context.Context, migrations Migrations, initialQueries ...string) (db *sql.DB, term func(), err error) {
 	r.runDaemonOnce.Do(r.runDaemon)
 
 	pgCnt, err := r.enter(ctx)
@@ -94,7 +109,7 @@ func (r *Reuseable) runContext(ctx context.Context, migrations Migrations, initi
 	return db, term, nil
 }
 
-func (r *Reuseable) reuse(ctx context.Context, pgCnt postgresContainer, migrations Migrations, initialQueries ...string) (db *sql.DB, term func(), err error) {
+func (r *Reusable) reuse(ctx context.Context, pgCnt postgresContainer, migrations Migrations, initialQueries ...string) (db *sql.DB, term func(), err error) {
 	term = r.dm.Exit
 
 	schemaName, err := r.createNewSchemaInContainer(ctx, pgCnt)
@@ -112,9 +127,11 @@ func (r *Reuseable) reuse(ctx context.Context, pgCnt postgresContainer, migratio
 		r.dm.Exit()
 	}
 
-	err = migrations.UpContext(ctx, db)
-	if err != nil {
-		return db, term, fmt.Errorf("up migrations, %w", err)
+	if migrations != nil {
+		err = migrations.UpContext(ctx, db)
+		if err != nil {
+			return db, term, fmt.Errorf("up migrations, %w", err)
+		}
 	}
 
 	for _, initialQuery := range initialQueries {
@@ -127,7 +144,7 @@ func (r *Reuseable) reuse(ctx context.Context, pgCnt postgresContainer, migratio
 	return db, term, nil
 }
 
-func (r *Reuseable) createNewSchemaInContainer(ctx context.Context, pgCnt postgresContainer) (schemaName string, err error) {
+func (r *Reusable) createNewSchemaInContainer(ctx context.Context, pgCnt postgresContainer) (schemaName string, err error) {
 	connString, err := pgCnt.ConnectionString(ctx, "sslmode=disable")
 	if err != nil {
 		return "", fmt.Errorf("get connection string, %w", err)
@@ -148,7 +165,7 @@ func (r *Reuseable) createNewSchemaInContainer(ctx context.Context, pgCnt postgr
 	return schemaName, nil
 }
 
-func (r *Reuseable) createSchema(ctx context.Context, db *sql.DB) (schemaName string, err error) {
+func (r *Reusable) createSchema(ctx context.Context, db *sql.DB) (schemaName string, err error) {
 	schemaCount := r.schemaCounter.Add(1)
 
 	schemaName = fmt.Sprintf("public%d", schemaCount)
@@ -179,7 +196,7 @@ func connectToSchema(ctx context.Context, pgCnt postgresContainer, schemaName st
 	return db, nil
 }
 
-func (r *Reuseable) enter(ctx context.Context) (postgresContainer, error) {
+func (r *Reusable) enter(ctx context.Context) (postgresContainer, error) {
 	cnt, err := r.dm.Enter(ctx)
 	if err != nil {
 		return nil, err
@@ -188,7 +205,7 @@ func (r *Reuseable) enter(ctx context.Context) (postgresContainer, error) {
 	return cnt.(postgresContainer), nil
 }
 
-func ReuseForTesting(t *testing.T, reuse *Reuseable, migrations Migrations, initialQueries ...string) *sql.DB {
+func ReuseForTesting(t *testing.T, reuse *Reusable, migrations Migrations, initialQueries ...string) *sql.DB {
 	containers.SkipDisabled(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -204,11 +221,11 @@ func ReuseForTesting(t *testing.T, reuse *Reuseable, migrations Migrations, init
 	return db
 }
 
-func Reuse(reuse *Reuseable, migrations Migrations, initialQueries ...string) (db *sql.DB, term func(), err error) {
+func Reuse(reuse *Reusable, migrations Migrations, initialQueries ...string) (db *sql.DB, term func(), err error) {
 	return ReuseContext(context.Background(), reuse, migrations, initialQueries...)
 }
 
-func ReuseContext(ctx context.Context, reuse *Reuseable, migrations Migrations, initialQueries ...string) (db *sql.DB, term func(), err error) {
+func ReuseContext(ctx context.Context, reuse *Reusable, migrations Migrations, initialQueries ...string) (db *sql.DB, term func(), err error) {
 	return reuse.runContext(ctx, migrations, initialQueries...)
 }
 

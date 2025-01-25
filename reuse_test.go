@@ -67,7 +67,7 @@ func Test_ReuseDaemon_Zero_User_Exit(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	daemon := containers.RunReuseDaemon(ctx, waitDuration, ccf)
+	daemon := containers.RunReusableDaemon(ctx, waitDuration, ccf)
 
 	notifyCtx, cancel := context.WithCancel(ctx)
 
@@ -92,7 +92,7 @@ func Test_ReuseDaemon_Zero_User_Exit(t *testing.T) {
 
 func simpleEnterAndExit(
 	t *testing.T,
-	daemon *containers.ReuseDaemon,
+	daemon *containers.ReusableDaemon,
 	notify func(),
 	expectedCnt any,
 	waitDuration time.Duration,
@@ -118,7 +118,7 @@ func simpleEnterAndExit(
 
 func awaitNotifyEnterAndExit(
 	t *testing.T,
-	daemon *containers.ReuseDaemon,
+	daemon *containers.ReusableDaemon,
 	notifyCtx context.Context,
 	expectedCnt any,
 ) {
@@ -170,7 +170,7 @@ func canceledCtx(t *testing.T) {
 
 	waitDuration := time.Duration(-1)
 
-	daemon := containers.RunReuseDaemon(
+	daemon := containers.RunReusableDaemon(
 		rootCtx,
 		waitDuration,
 		ccf,
@@ -238,7 +238,7 @@ func runInTimeCanceledReuseDaemon(
 ) {
 	rootCtx, rootCancel := context.WithCancel(ctx)
 
-	daemon := containers.RunReuseDaemon(
+	daemon := containers.RunReusableDaemon(
 		rootCtx,
 		waitDuration,
 		ccf,
@@ -287,7 +287,7 @@ func runInTimeCanceledReuseDaemonWhileCanceled(
 ) {
 	rootCtx, rootCancel := context.WithCancel(ctx)
 
-	daemon := containers.RunReuseDaemon(
+	daemon := containers.RunReusableDaemon(
 		rootCtx,
 		waitDuration,
 		ccf,

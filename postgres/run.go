@@ -78,9 +78,11 @@ func run(ctx context.Context, ccf CreateContainerFunc, migrations Migrations, in
 		}
 	}
 
-	err = migrations.UpContext(ctx, db)
-	if err != nil {
-		return db, term, fmt.Errorf("up migrations, %w", err)
+	if migrations != nil {
+		err = migrations.UpContext(ctx, db)
+		if err != nil {
+			return db, term, fmt.Errorf("up migrations, %w", err)
+		}
 	}
 
 	for _, initialQuery := range initialQueries {

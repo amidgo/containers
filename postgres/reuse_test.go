@@ -14,22 +14,22 @@ func Test_ReuseForTesting(t *testing.T) {
 	t.Run("NewReuseable_RunContainer", testReuse(postgrescontainer.NewReusable(postgrescontainer.RunContainer)))
 }
 
-func testReuse(reuseable *postgrescontainer.Reuseable) func(t *testing.T) {
+func testReuse(reusable *postgrescontainer.Reusable) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Parallel()
 
 		for i := range 100 {
-			t.Run(fmt.Sprintf("%d", i), runReuseCase(reuseable))
+			t.Run(fmt.Sprintf("%d", i), runReuseCase(reusable))
 		}
 	}
 }
 
-func runReuseCase(reuseable *postgrescontainer.Reuseable) func(t *testing.T) {
+func runReuseCase(reusable *postgrescontainer.Reusable) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Parallel()
 
 		_ = postgrescontainer.ReuseForTesting(t,
-			reuseable,
+			reusable,
 			postgrescontainer.GooseMigrations("./testdata/migrations"),
 			"INSERT INTO users (name) VALUES ('Dima')",
 		)
