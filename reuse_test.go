@@ -143,6 +143,7 @@ func Test_ReuseDaemon_Cancel_Root_Context(t *testing.T) {
 	t.Parallel()
 
 	t.Run("canceled ctx", canceledCtx)
+	t.Run("in time canceled ctx", inTimeCanceledCtx)
 }
 
 func canceledCtx(t *testing.T) {
@@ -151,7 +152,7 @@ func canceledCtx(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	rootCtx, rootCancel := context.WithCancel(context.Background())
+	rootCtx, rootCancel := context.WithCancel(ctx)
 
 	cnt := newMockTerminater(t)
 
@@ -205,6 +206,117 @@ func canceledCtx(t *testing.T) {
 		t.Fatalf(
 			"unexpected error of entering in canceled daemon, expected context.Canceled, actual %+v",
 			err,
+		)
+	}
+}
+
+func inTimeCanceledCtx(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	waitDuration := time.Millisecond
+
+	ccf := containers.CreateContainerFunc(func(ctx context.Context) (any, error) {
+		return newMockTerminater(t), nil
+	})
+
+	runInTimeCanceledReuseDaemon(
+		t,
+		ctx,
+		waitDuration,
+		ccf,
+	)
+}
+
+func runInTimeCanceledReuseDaemon(
+	t *testing.T,
+	ctx context.Context,
+	waitDuration time.Duration,
+	ccf containers.CreateContainerFunc,
+) {
+	rootCtx, rootCancel := context.WithCancel(ctx)
+
+	daemon := containers.RunReuseDaemon(
+		rootCtx,
+		waitDuration,
+		ccf,
+	)
+
+	timeCtx, timeCancel := context.WithTimeout(ctx, time.Millisecond*10)
+	t.Cleanup(timeCancel)
+
+	go func() {
+		<-timeCtx.Done()
+		rootCancel()
+	}()
+
+	<-timeCtx.Done()
+
+	_, err := daemon.Enter(ctx)
+	switch err {
+	case nil:
+		daemon.Exit()
+
+		runInTimeCanceledReuseDaemon(
+			t,
+			ctx,
+			waitDuration,
+			ccf,
+		)
+	default:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("unexpected error, expected context.Canceled, actual %+v", err)
+		}
+
+		runInTimeCanceledReuseDaemonWhileCanceled(
+			t,
+			ctx,
+			waitDuration,
+			ccf,
+		)
+	}
+}
+
+func runInTimeCanceledReuseDaemonWhileCanceled(
+	t *testing.T,
+	ctx context.Context,
+	waitDuration time.Duration,
+	ccf containers.CreateContainerFunc,
+) {
+	rootCtx, rootCancel := context.WithCancel(ctx)
+
+	daemon := containers.RunReuseDaemon(
+		rootCtx,
+		waitDuration,
+		ccf,
+	)
+
+	timeCtx, timeCancel := context.WithTimeout(ctx, time.Millisecond*10)
+	t.Cleanup(timeCancel)
+
+	go func() {
+		<-timeCtx.Done()
+		rootCancel()
+	}()
+
+	<-timeCtx.Done()
+
+	_, err := daemon.Enter(ctx)
+	switch err {
+	case nil:
+		daemon.Exit()
+	default:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("unexpected error, expected context.Canceled, actual %+v", err)
+		}
+
+		runInTimeCanceledReuseDaemonWhileCanceled(
+			t,
+			ctx,
+			waitDuration,
+			ccf,
 		)
 	}
 }
