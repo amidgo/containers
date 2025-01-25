@@ -199,5 +199,12 @@ func canceledCtx(t *testing.T) {
 	}
 
 	daemon.Exit()
-	daemon.Enter(ctx)
+
+	enterCnt, err = daemon.Enter(ctx)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf(
+			"unexpected error of entering in canceled daemon, expected context.Canceled, actual %+v",
+			err,
+		)
+	}
 }
