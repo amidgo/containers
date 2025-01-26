@@ -14,8 +14,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 
 	//nolint:revive // need for launch container
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/jackc/pgx/v5/stdlib"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -62,12 +61,10 @@ func run(ctx context.Context, ccf CreateContainerFunc, migrations Migrations, in
 		return nil, term, fmt.Errorf("get connection string, %w", err)
 	}
 
-	conn, err := pgxpool.New(ctx, connString)
+	db, err = sql.Open("pgx", connString)
 	if err != nil {
 		return nil, term, fmt.Errorf("open connection, %w", err)
 	}
-
-	db = stdlib.OpenDBFromPool(conn)
 
 	term = func() {
 		_ = db.Close()

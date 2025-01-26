@@ -18,7 +18,13 @@ func testReuse(reusable *postgrescontainer.Reusable) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Parallel()
 
-		for i := range 100 {
+		reuseCaseCount := 10000
+
+		if testing.Short() {
+			reuseCaseCount = 100
+		}
+
+		for i := range reuseCaseCount {
 			t.Run(fmt.Sprintf("%d", i), runReuseCase(reusable))
 		}
 	}

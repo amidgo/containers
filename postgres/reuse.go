@@ -10,8 +10,6 @@ import (
 	"time"
 
 	"github.com/amidgo/containers"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/jackc/pgx/v5/stdlib"
 )
 
 const defaultDuration = time.Second
@@ -141,12 +139,10 @@ func (r *Reusable) createNewSchemaInContainer(ctx context.Context, pgCnt postgre
 		return "", fmt.Errorf("get connection string, %w", err)
 	}
 
-	conn, err := pgxpool.New(ctx, connString)
+	baseDB, err := sql.Open("pgx", connString)
 	if err != nil {
 		return "", fmt.Errorf("open connection, %w", err)
 	}
-
-	baseDB := stdlib.OpenDBFromPool(conn)
 
 	defer baseDB.Close()
 
@@ -179,12 +175,10 @@ func connectToSchema(ctx context.Context, pgCnt postgresContainer, schemaName st
 		return nil, fmt.Errorf("get connection string to specific schema, schema_name=%s, %w", schemaName, err)
 	}
 
-	conn, err := pgxpool.New(ctx, connString)
+	db, err := sql.Open("pgx", connString)
 	if err != nil {
 		return nil, fmt.Errorf("open connection, %w", err)
 	}
-
-	db := stdlib.OpenDBFromPool(conn)
 
 	return db, nil
 }
