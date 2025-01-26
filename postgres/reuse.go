@@ -141,10 +141,12 @@ func (r *Reusable) createNewSchemaInContainer(ctx context.Context, pgCnt postgre
 		return "", fmt.Errorf("get connection string, %w", err)
 	}
 
-	baseDB, err := sql.Open("pgx", connString)
+	conn, err := pgxpool.New(ctx, connString)
 	if err != nil {
-		return "", fmt.Errorf("open connection to db, %w", err)
+		return "", fmt.Errorf("open connection, %w", err)
 	}
+
+	baseDB := stdlib.OpenDBFromPool(conn)
 
 	defer baseDB.Close()
 
