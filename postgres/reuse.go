@@ -117,7 +117,7 @@ func (r *Reusable) reuse(ctx context.Context, pgCnt postgresContainer, migration
 	}
 
 	if migrations != nil {
-		err = migrations.UpContext(ctx, db)
+		err = migrations.Up(ctx, db)
 		if err != nil {
 			return db, term, fmt.Errorf("up migrations, %w", err)
 		}
