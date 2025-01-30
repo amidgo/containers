@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	postgrescontainer "github.com/amidgo/containers/postgres"
-	"github.com/stretchr/testify/require"
+	goosemigrations "github.com/amidgo/containers/postgres/migrations/goose"
 )
 
 func Test_Postgres_Migrations_WithInitialQuery(t *testing.T) {
@@ -13,7 +13,7 @@ func Test_Postgres_Migrations_WithInitialQuery(t *testing.T) {
 
 	db := postgrescontainer.RunForTesting(
 		t,
-		postgrescontainer.GooseMigrations("./testdata/migrations"),
+		goosemigrations.New("./testdata/migrations"),
 		`INSERT INTO users (name) VALUES ('Dima')`,
 	)
 
@@ -22,7 +22,11 @@ func Test_Postgres_Migrations_WithInitialQuery(t *testing.T) {
 	name := ""
 
 	err := db.QueryRowContext(context.Background(), "SELECT name FROM users").Scan(&name)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("select name from users, unexpected error: %+v", err)
+	}
 
-	require.Equal(t, expectedName, name)
+	if expectedName != name {
+		t.Fatalf("wrong name, expected %s, actual %s", expectedName, name)
+	}
 }

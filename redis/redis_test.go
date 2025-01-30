@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	rediscontainer "github.com/amidgo/containers/redis"
-	"github.com/stretchr/testify/require"
 )
 
 func Test_RunRedis(t *testing.T) {
@@ -32,6 +31,11 @@ func Test_RunRedis_Initial(t *testing.T) {
 	redisClient.Get(ctx, "key").Scan(&stringValue)
 	redisClient.Get(ctx, "integer").Scan(&integerValue)
 
-	require.Equal(t, "value", stringValue)
-	require.Equal(t, 1000, integerValue)
+	if stringValue != "value" {
+		t.Fatalf("unexpected value from stringValue, expected 'value', actual %s", stringValue)
+	}
+
+	if integerValue != 1000 {
+		t.Fatalf("unexpected value from integerValue, expected 1000, actual %d", integerValue)
+	}
 }

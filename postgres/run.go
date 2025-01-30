@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/amidgo/containers"
+	"github.com/amidgo/containers/postgres/migrations"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -18,13 +19,17 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-func RunForTesting(t *testing.T, migrations Migrations, initialQueries ...string) *sql.DB {
+func RunForTesting(
+	t *testing.T,
+	migrations migrations.Migrations,
+	initialQueries ...string,
+) *sql.DB {
 	containers.SkipDisabled(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	db, term, err := RunContext(ctx, migrations, initialQueries...)
+	db, term, err := Run(ctx, migrations, initialQueries...)
 	t.Cleanup(term)
 
 	if err != nil {
@@ -34,15 +39,20 @@ func RunForTesting(t *testing.T, migrations Migrations, initialQueries ...string
 	return db
 }
 
-func Run(migrations Migrations, initialQueries ...string) (db *sql.DB, term func(), err error) {
-	return RunContext(context.Background(), migrations, initialQueries...)
+func Run(
+	ctx context.Context,
+	migrations migrations.Migrations,
+	initialQueries ...string,
+) (db *sql.DB, term func(), err error) {
+	return run(ctx, CreateContainer, migrations, initialQueries...)
 }
 
-func RunContext(ctx context.Context, migrations Migrations, initialQueries ...string) (db *sql.DB, term func(), err error) {
-	return run(ctx, RunContainer, migrations, initialQueries...)
-}
-
-func run(ctx context.Context, ccf CreateContainerFunc, migrations Migrations, initialQueries ...string) (db *sql.DB, term func(), err error) {
+func run(
+	ctx context.Context,
+	ccf CreateContainerFunc,
+	migrations migrations.Migrations,
+	initialQueries ...string,
+) (db *sql.DB, term func(), err error) {
 	pgCnt, err := ccf(ctx)
 	if err != nil {
 		return nil, func() {}, err
@@ -92,7 +102,7 @@ func run(ctx context.Context, ccf CreateContainerFunc, migrations Migrations, in
 	return db, term, nil
 }
 
-func RunContainer(ctx context.Context) (postgresContainer, error) {
+func CreateContainer(ctx context.Context) (postgresContainer, error) {
 	dbName := "test"
 	dbUser := "admin"
 	dbPassword := dbUser

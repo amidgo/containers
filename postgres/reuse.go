@@ -10,12 +10,13 @@ import (
 	"time"
 
 	"github.com/amidgo/containers"
+	"github.com/amidgo/containers/postgres/migrations"
 )
 
 const defaultDuration = time.Second
 
 var (
-	globalReusable    = NewReusable(RunContainer)
+	globalReusable    = NewReusable(CreateContainer)
 	globalEnvReusable = NewReusable(EnvContainer)
 )
 
@@ -82,7 +83,11 @@ func (r *Reusable) Terminate(ctx context.Context) error {
 	}
 }
 
-func (r *Reusable) runContext(ctx context.Context, migrations Migrations, initialQueries ...string) (db *sql.DB, term func(), err error) {
+func (r *Reusable) run(
+	ctx context.Context,
+	migrations migrations.Migrations,
+	initialQueries ...string,
+) (db *sql.DB, term func(), err error) {
 	r.runDaemonOnce.Do(r.runDaemon)
 
 	pgCnt, err := r.enter(ctx)
@@ -98,7 +103,12 @@ func (r *Reusable) runContext(ctx context.Context, migrations Migrations, initia
 	return db, term, nil
 }
 
-func (r *Reusable) reuse(ctx context.Context, pgCnt postgresContainer, migrations Migrations, initialQueries ...string) (db *sql.DB, term func(), err error) {
+func (r *Reusable) reuse(
+	ctx context.Context,
+	pgCnt postgresContainer,
+	migrations migrations.Migrations,
+	initialQueries ...string,
+) (db *sql.DB, term func(), err error) {
 	term = r.dm.Exit
 
 	schemaName, err := r.createNewSchemaInContainer(ctx, pgCnt)
@@ -192,13 +202,18 @@ func (r *Reusable) enter(ctx context.Context) (postgresContainer, error) {
 	return cnt.(postgresContainer), nil
 }
 
-func ReuseForTesting(t *testing.T, reuse *Reusable, migrations Migrations, initialQueries ...string) *sql.DB {
+func ReuseForTesting(
+	t *testing.T,
+	reuse *Reusable,
+	migrations migrations.Migrations,
+	initialQueries ...string,
+) *sql.DB {
 	containers.SkipDisabled(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	db, term, err := ReuseContext(ctx, reuse, migrations, initialQueries...)
+	db, term, err := Reuse(ctx, reuse, migrations, initialQueries...)
 	t.Cleanup(term)
 
 	if err != nil {
@@ -208,12 +223,13 @@ func ReuseForTesting(t *testing.T, reuse *Reusable, migrations Migrations, initi
 	return db
 }
 
-func Reuse(reuse *Reusable, migrations Migrations, initialQueries ...string) (db *sql.DB, term func(), err error) {
-	return ReuseContext(context.Background(), reuse, migrations, initialQueries...)
-}
-
-func ReuseContext(ctx context.Context, reuse *Reusable, migrations Migrations, initialQueries ...string) (db *sql.DB, term func(), err error) {
-	return reuse.runContext(ctx, migrations, initialQueries...)
+func Reuse(
+	ctx context.Context,
+	reuse *Reusable,
+	migrations migrations.Migrations,
+	initialQueries ...string,
+) (db *sql.DB, term func(), err error) {
+	return reuse.run(ctx, migrations, initialQueries...)
 }
 
 func EnvContainer(ctx context.Context) (postgresContainer, error) {

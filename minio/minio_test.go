@@ -3,12 +3,11 @@ package miniocontainer_test
 import (
 	"context"
 	"io"
+	"strings"
 	"testing"
 
 	miniocontainer "github.com/amidgo/containers/minio"
-	"github.com/amidgo/tester"
 	"github.com/minio/minio-go/v7"
-	"github.com/stretchr/testify/require"
 )
 
 type RunForTestingTest struct {
@@ -29,12 +28,19 @@ func (r *RunForTestingTest) Test(t *testing.T) {
 	minioClient := miniocontainer.RunForTesting(t, r.AvailableBuckets, r.InitialFiles)
 
 	_, err := minioClient.ListBuckets(ctx)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("get list of buckets, unexpected error: %+v", err)
+	}
 
 	for _, bucket := range r.AvailableBuckets {
 		exists, err := minioClient.BucketExists(ctx, bucket)
-		require.NoError(t, err)
-		require.True(t, exists)
+		if err != nil {
+			t.Fatalf("check bucket %s exists, unexpected error: %+v", bucket, err)
+		}
+
+		if !exists {
+			t.Fatalf("check bucket %s exists, bucket not exists", bucket)
+		}
 	}
 
 	for _, initialFile := range r.InitialFiles {
@@ -43,21 +49,42 @@ func (r *RunForTestingTest) Test(t *testing.T) {
 }
 
 func requireInitialFileExists(t *testing.T, ctx context.Context, minioClient *minio.Client, initialFile miniocontainer.File) {
-	t.Helper()
-
 	object, err := minioClient.GetObject(ctx, initialFile.Bucket, initialFile.Name, minio.GetObjectOptions{})
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("get object %s from bucket %s, unexpected error: %+v", initialFile.Name, initialFile.Bucket, err)
+	}
 
-	objectData, err := io.ReadAll(object)
-	require.NoError(t, err)
+	objectData := &strings.Builder{}
 
-	require.Equal(t, initialFile.Content, string(objectData))
+	_, err = io.Copy(objectData, object)
+	if err != nil {
+		t.Fatalf("read data from object %s from bucket %s, unexpected error: %+v", initialFile.Name, initialFile.Bucket, err)
+	}
+
+	if objectData.String() != initialFile.Content {
+		t.Fatalf(
+			"objectData from %s from bucket %s not equal,\nexpected:\n\t%s\nactual:\n\t%s",
+			initialFile.Name,
+			initialFile.Bucket,
+			initialFile.Content,
+			objectData.String(),
+		)
+	}
+}
+
+func runForTestingTests(
+	t *testing.T,
+	tests ...*RunForTestingTest,
+) {
+	for _, tst := range tests {
+		t.Run(tst.Name(), tst.Test)
+	}
 }
 
 func Test_Minio(t *testing.T) {
 	t.Parallel()
 
-	tester.RunNamedTesters(t,
+	runForTestingTests(t,
 		&RunForTestingTest{
 			CaseName: "empty buckets and files",
 		},

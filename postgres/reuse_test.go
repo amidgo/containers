@@ -5,13 +5,14 @@ import (
 	"testing"
 
 	postgrescontainer "github.com/amidgo/containers/postgres"
+	goosemigrations "github.com/amidgo/containers/postgres/migrations/goose"
 )
 
 func Test_ReuseForTesting(t *testing.T) {
 	t.Parallel()
 
 	t.Run("GlobalReuseable", testReuse(postgrescontainer.GlobalReusable()))
-	t.Run("NewReuseable_RunContainer", testReuse(postgrescontainer.NewReusable(postgrescontainer.RunContainer)))
+	t.Run("NewReuseable_RunContainer", testReuse(postgrescontainer.NewReusable(postgrescontainer.CreateContainer)))
 }
 
 func testReuse(reusable *postgrescontainer.Reusable) func(t *testing.T) {
@@ -36,7 +37,7 @@ func runReuseCase(reusable *postgrescontainer.Reusable) func(t *testing.T) {
 
 		_ = postgrescontainer.ReuseForTesting(t,
 			reusable,
-			postgrescontainer.GooseMigrations("./testdata/migrations"),
+			goosemigrations.New("./testdata/migrations"),
 			"INSERT INTO users (name) VALUES ('Dima')",
 		)
 	}
