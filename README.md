@@ -2,7 +2,10 @@
 
 ```go
 func Test_XXX(t *testing.T) {
-	db := postgrescontainer.RunForTesting(t)
+	db := postgrescontainer.RunForTesting(t,
+		goosemigrations.New("./testdata/migrations"),
+		"INSERT INTO users (name) VALUES ('amidgo')",
+	)
 
 	...// Your code for testing
 }
@@ -26,7 +29,7 @@ Run new container funcs run new postgres container, run provided migrations and 
 ```go
 func Test_XXX(t *testing.T) {
 	db := postgrescontainer.RunForTesting(t,
-		postgrescontainer.GooseMigrations("./testdata/migrations"),
+		goosemigrations.New("./testdata/migrations"),
 		"INSERT INTO users (name) VALUES ('amidgo')",
 	)
 
@@ -64,7 +67,7 @@ func TestMain(m *testing.M) {
 
 	containerDB, term, err := postgrescontainer.RunContext(
 		ctx,
-		postgrescontainer.GooseMigrations("./testdata/migrations"),
+		goosemigrations.New("./testdata/migrations"),
 		"INSERT INTO users (name) VALUES ('amidgo')",
 	)
 	// The term func must be call regardless of function call
@@ -134,7 +137,7 @@ You can reuse single container over all project tests with Reuseable
 func Test_XXX(t *testing.T) {
 	db := postgrescontainer.ReuseForTesting(t,
 		postgrescontainer.GlobalReusable(),
-		postgrescontainer.GooseMigrations("./testdata/migrations"),
+		goosemigrations.New("./testdata/migrations"),
 		"INSERT INTO users (name) VALUES ('amidgo')",
 	)
 
@@ -170,7 +173,7 @@ func TestMain(m *testing.M) {
 
 	containerDB, term, err := postgrescontainer.ReuseForTesting(t,
 		postgrescontainer.GlobalReusable(),
-		postgrescontainer.GooseMigrations("./testdata/migrations"),
+		goosemigrations.New("./testdata/migrations"),
 		"INSERT INTO users (name) VALUES ('amidgo')",
 	)
 	// The term func must be call regardless of function call

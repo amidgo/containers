@@ -1,10 +1,11 @@
 package postgrescontainer
 
-import "context"
+import (
+	"context"
+	"database/sql"
+)
 
-type postgresContainer interface {
-	ConnectionString(ctx context.Context, args ...string) (string, error)
+type Container interface {
+	Connect(ctx context.Context, args ...string) (*sql.DB, error)
 	Terminate(ctx context.Context) error
 }
-
-type CreateContainerFunc func(ctx context.Context) (postgresContainer, error)

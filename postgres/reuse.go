@@ -15,19 +15,6 @@ import (
 
 const defaultDuration = time.Second
 
-var (
-	globalReusable    = NewReusable(CreateContainer)
-	globalEnvReusable = NewReusable(EnvContainer)
-)
-
-func GlobalReusable() *Reusable {
-	return globalReusable
-}
-
-func GlobalEnvReusable() *Reusable {
-	return globalEnvReusable
-}
-
 type ReusableOption func(r *Reusable)
 
 func WithWaitDuration(duration time.Duration) ReusableOption {
@@ -36,9 +23,9 @@ func WithWaitDuration(duration time.Duration) ReusableOption {
 	}
 }
 
-func NewReusable(ccf CreateContainerFunc, opts ...ReusableOption) *Reusable {
+func NewReusable(creator Creator, opts ...ReusableOption) *Reusable {
 	r := &Reusable{
-		ccf:          ccf,
+		creator:      creator,
 		waitDuration: defaultDuration,
 	}
 
@@ -51,7 +38,7 @@ func NewReusable(ccf CreateContainerFunc, opts ...ReusableOption) *Reusable {
 
 type Reusable struct {
 	runDaemonOnce sync.Once
-	ccf           CreateContainerFunc
+	creator       Creator
 	schemaCounter atomic.Int64
 	dm            *containers.ReusableDaemon
 	stopDaemon    context.CancelFunc
@@ -61,7 +48,7 @@ type Reusable struct {
 
 func (r *Reusable) runDaemon() {
 	ccf := func(ctx context.Context) (any, error) {
-		return r.ccf(ctx)
+		return r.creator.Create(ctx)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -105,7 +92,7 @@ func (r *Reusable) run(
 
 func (r *Reusable) reuse(
 	ctx context.Context,
-	pgCnt postgresContainer,
+	pgCnt Container,
 	migrations migrations.Migrations,
 	initialQueries ...string,
 ) (db *sql.DB, term func(), err error) {
@@ -143,15 +130,10 @@ func (r *Reusable) reuse(
 	return db, term, nil
 }
 
-func (r *Reusable) createNewSchemaInContainer(ctx context.Context, pgCnt postgresContainer) (schemaName string, err error) {
-	connString, err := pgCnt.ConnectionString(ctx, "sslmode=disable")
+func (r *Reusable) createNewSchemaInContainer(ctx context.Context, pgCnt Container) (schemaName string, err error) {
+	baseDB, err := pgCnt.Connect(ctx, "sslmode=disable")
 	if err != nil {
-		return "", fmt.Errorf("get connection string, %w", err)
-	}
-
-	baseDB, err := sql.Open("pgx", connString)
-	if err != nil {
-		return "", fmt.Errorf("open connection, %w", err)
+		return "", fmt.Errorf("connect to database, %w", err)
 	}
 
 	defer baseDB.Close()
@@ -179,27 +161,22 @@ func (r *Reusable) createSchema(ctx context.Context, db *sql.DB) (schemaName str
 	return schemaName, nil
 }
 
-func connectToSchema(ctx context.Context, pgCnt postgresContainer, schemaName string) (*sql.DB, error) {
-	connString, err := pgCnt.ConnectionString(ctx, "sslmode=disable", "search_path="+schemaName)
+func connectToSchema(ctx context.Context, pgCnt Container, schemaName string) (*sql.DB, error) {
+	db, err := pgCnt.Connect(ctx, "sslmode=disable", "search_path="+schemaName)
 	if err != nil {
-		return nil, fmt.Errorf("get connection string to specific schema, schema_name=%s, %w", schemaName, err)
-	}
-
-	db, err := sql.Open("pgx", connString)
-	if err != nil {
-		return nil, fmt.Errorf("open connection, %w", err)
+		return nil, fmt.Errorf("connect to databse, schema_name=%s, %w", schemaName, err)
 	}
 
 	return db, nil
 }
 
-func (r *Reusable) enter(ctx context.Context) (postgresContainer, error) {
+func (r *Reusable) enter(ctx context.Context) (Container, error) {
 	cnt, err := r.dm.Enter(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	return cnt.(postgresContainer), nil
+	return cnt.(Container), nil
 }
 
 func ReuseForTesting(
@@ -232,6 +209,6 @@ func Reuse(
 	return reuse.run(ctx, migrations, initialQueries...)
 }
 
-func EnvContainer(ctx context.Context) (postgresContainer, error) {
+func EnvContainer(ctx context.Context) (Container, error) {
 	return nil, nil
 }
