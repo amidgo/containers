@@ -28,6 +28,7 @@ func Default() postgrescontainer.Creator {
 func New(connectionString fmt.Stringer, driverName string) postgrescontainer.Creator {
 	return Creator{
 		connectionString: connectionString,
+		driverName:       driverName,
 	}
 }
 
