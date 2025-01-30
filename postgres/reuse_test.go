@@ -7,6 +7,7 @@ import (
 	postgrescontainer "github.com/amidgo/containers/postgres"
 	postgresruntimecontainer "github.com/amidgo/containers/postgres/creator/runtime"
 	goosemigrations "github.com/amidgo/containers/postgres/migrations/goose"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
