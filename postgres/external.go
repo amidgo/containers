@@ -20,7 +20,7 @@ func ExternalReusable() *Reusable {
 	return externalReusable
 }
 
-func ExternalForTestingConfig(
+func UseExternalForTestingConfig(
 	t *testing.T,
 	cfg *ExternalContainerConfig,
 	migrations migrations.Migrations,
@@ -31,7 +31,7 @@ func ExternalForTestingConfig(
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	db, term, err := ExternalConfig(ctx, cfg, migrations, initialQueries...)
+	db, term, err := UseExternalConfig(ctx, cfg, migrations, initialQueries...)
 	t.Cleanup(term)
 
 	if err != nil {
@@ -41,12 +41,12 @@ func ExternalForTestingConfig(
 	return db
 }
 
-func ExternalForTesting(
+func UseExternalForTesting(
 	t *testing.T,
 	migrations migrations.Migrations,
 	initialQueries ...string,
 ) *sql.DB {
-	return ExternalForTestingConfig(
+	return UseExternalForTestingConfig(
 		t,
 		nil,
 		migrations,
@@ -54,7 +54,7 @@ func ExternalForTesting(
 	)
 }
 
-func ExternalConfig(
+func UseExternalConfig(
 	ctx context.Context,
 	cfg *ExternalContainerConfig,
 	migrations migrations.Migrations,
@@ -68,12 +68,12 @@ func ExternalConfig(
 	return Init(ctx, pgCnt, migrations, initialQueries...)
 }
 
-func External(
+func UseExternal(
 	ctx context.Context,
 	migrations migrations.Migrations,
 	initialQueries ...string,
 ) (db *sql.DB, term func(), err error) {
-	return ExternalConfig(
+	return UseExternalConfig(
 		ctx,
 		nil,
 		migrations,
@@ -86,10 +86,14 @@ type ExternalContainerConfig struct {
 	ConnectionString string
 }
 
+const (
+	defaultDriverName       = "pgx"
+	connectionStringEnvName = "CONTAINERS_POSTGRES_CONNECTION_STRING"
+)
+
 var (
 	defaultConfig = &ExternalContainerConfig{
-		DriverName:       "pgx",
-		ConnectionString: os.Getenv("CONTAINERS_POSTGRES_CONNECTION_STRING"),
+		DriverName: defaultDriverName,
 	}
 )
 
@@ -99,9 +103,22 @@ func ExternalContainer(cfg *ExternalContainerConfig) CreateContainerFunc {
 			cfg = defaultConfig
 		}
 
+		driverName := cfg.DriverName
+		if driverName == "" {
+			driverName = defaultConfig.DriverName
+		}
+
+		connectionString := cfg.ConnectionString
+		if connectionString == "" {
+			connectionString = os.Getenv(connectionStringEnvName)
+			if connectionString == "" {
+				panic("connection string is empty and environment variable " + connectionStringEnvName + " is empty")
+			}
+		}
+
 		return externalContainer{
-				connectionString: cfg.ConnectionString,
-				driverName:       cfg.DriverName,
+				connectionString: connectionString,
+				driverName:       driverName,
 			},
 			nil
 	}

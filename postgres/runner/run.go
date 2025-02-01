@@ -79,12 +79,20 @@ type Config struct {
 	DriverName    string
 }
 
+const (
+	defaultDBName        = "test"
+	defaultDBUser        = "admin"
+	defaultDBPassword    = "admin"
+	defaultPostgresImage = "postgres:16-alpine"
+	defaultDriverName    = "pgx"
+)
+
 var defaultConfig = &Config{
-	DBName:        "test",
-	DBUser:        "admin",
-	DBPassword:    "admin",
-	PostgresImage: "postgres:16-alpine",
-	DriverName:    "pgx",
+	DBName:        defaultDBName,
+	DBUser:        defaultDBUser,
+	DBPassword:    defaultDBPassword,
+	PostgresImage: defaultPostgresImage,
+	DriverName:    defaultDriverName,
 }
 
 func RunContainer(cfg *Config) postgrescontainer.CreateContainerFunc {
@@ -96,11 +104,27 @@ func RunContainer(cfg *Config) postgrescontainer.CreateContainerFunc {
 		dbName := cfg.DBName
 		dbUser := cfg.DBUser
 		dbPassword := cfg.DBPassword
-		postgresImage := cfg.PostgresImage
+		postgresImage := os.Getenv("CONTAINERS_POSTGRES_IMAGE")
 		driverName := cfg.DriverName
 
-		if img := os.Getenv("CONTAINERS_POSTGRES_IMAGE"); img != "" {
-			postgresImage = img
+		if dbName == "" {
+			dbName = defaultDBName
+		}
+
+		if dbUser == "" {
+			dbUser = defaultDBUser
+		}
+
+		if dbPassword == "" {
+			dbPassword = defaultDBPassword
+		}
+
+		if postgresImage == "" {
+			postgresImage = defaultPostgresImage
+		}
+
+		if driverName == "" {
+			driverName = defaultDriverName
 		}
 
 		postgresContainer, err := postgres.Run(ctx,
