@@ -1,12 +1,11 @@
-package postgrescontainer_test
+package postgrescontainerrunner_test
 
 import (
 	"context"
 	"testing"
 
-	postgrescontainer "github.com/amidgo/containers/postgres"
-	postgresruntimecontainer "github.com/amidgo/containers/postgres/creator/runtime"
 	goosemigrations "github.com/amidgo/containers/postgres/migrations/goose"
+	postgrescontainerrunner "github.com/amidgo/containers/postgres/runner"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -14,9 +13,8 @@ import (
 func Test_Postgres_Migrations_WithInitialQuery(t *testing.T) {
 	t.Parallel()
 
-	db := postgrescontainer.RunForTesting(
+	db := postgrescontainerrunner.RunForTesting(
 		t,
-		postgresruntimecontainer.Default(),
 		goosemigrations.New("./testdata/migrations"),
 		`INSERT INTO users (name) VALUES ('Dima')`,
 	)

@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	postgrescontainer "github.com/amidgo/containers/postgres"
-	postgresruntimecontainer "github.com/amidgo/containers/postgres/creator/runtime"
 	goosemigrations "github.com/amidgo/containers/postgres/migrations/goose"
+	postgrescontainerrunner "github.com/amidgo/containers/postgres/runner"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -14,8 +14,12 @@ import (
 func Test_ReuseForTesting(t *testing.T) {
 	t.Parallel()
 
-	t.Run("GlobalReuseable", testReuse(postgresruntimecontainer.GlobalReusable()))
-	t.Run("NewReuseable_RunContainer", testReuse(postgrescontainer.NewReusable(postgresruntimecontainer.Default())))
+	testReusable := postgrescontainer.NewReusable(
+		postgrescontainerrunner.RunContainer(nil),
+	)
+
+	t.Run("GlobalReuseable", testReuse(postgrescontainerrunner.Reusable()))
+	t.Run("NewReuseable_RunContainer", testReuse(testReusable))
 }
 
 func testReuse(reusable *postgrescontainer.Reusable) func(t *testing.T) {
