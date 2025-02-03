@@ -13,7 +13,7 @@ func Init(
 	ctx context.Context,
 	pgCnt Container,
 	migrations migrations.Migrations,
-	initialQueries ...string,
+	initialQueries ...Query,
 ) (db *sql.DB, term func(), err error) {
 	// Clean up the container
 	term = func() {
@@ -45,9 +45,9 @@ func Init(
 	}
 
 	for _, initialQuery := range initialQueries {
-		_, execErr := db.ExecContext(ctx, initialQuery)
-		if execErr != nil {
-			return db, term, fmt.Errorf("exec %s query, %w", initialQuery, execErr)
+		err = execQuery(ctx, db, initialQuery)
+		if err != nil {
+			return db, term, err
 		}
 	}
 

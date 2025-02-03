@@ -24,7 +24,7 @@ func UseExternalForTestingConfig(
 	t *testing.T,
 	cfg *ExternalContainerConfig,
 	migrations migrations.Migrations,
-	initialQueries ...string,
+	initialQueries ...Query,
 ) *sql.DB {
 	containers.SkipDisabled(t)
 
@@ -44,7 +44,7 @@ func UseExternalForTestingConfig(
 func UseExternalForTesting(
 	t *testing.T,
 	migrations migrations.Migrations,
-	initialQueries ...string,
+	initialQueries ...Query,
 ) *sql.DB {
 	return UseExternalForTestingConfig(
 		t,
@@ -58,7 +58,7 @@ func UseExternalConfig(
 	ctx context.Context,
 	cfg *ExternalContainerConfig,
 	migrations migrations.Migrations,
-	initialQueries ...string,
+	initialQueries ...Query,
 ) (db *sql.DB, term func(), err error) {
 	pgCnt, err := ExternalContainer(cfg)(ctx)
 	if err != nil {
@@ -71,7 +71,7 @@ func UseExternalConfig(
 func UseExternal(
 	ctx context.Context,
 	migrations migrations.Migrations,
-	initialQueries ...string,
+	initialQueries ...Query,
 ) (db *sql.DB, term func(), err error) {
 	return UseExternalConfig(
 		ctx,

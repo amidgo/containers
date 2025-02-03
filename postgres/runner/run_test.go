@@ -2,8 +2,10 @@ package postgrescontainerrunner_test
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 
+	"github.com/Masterminds/squirrel"
 	goosemigrations "github.com/amidgo/containers/postgres/migrations/goose"
 	postgrescontainerrunner "github.com/amidgo/containers/postgres/runner"
 
@@ -13,22 +15,31 @@ import (
 func Test_Postgres_Migrations_WithInitialQuery(t *testing.T) {
 	t.Parallel()
 
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
 	db := postgrescontainerrunner.RunForTesting(
 		t,
 		goosemigrations.New("./testdata/migrations"),
 		`INSERT INTO users (name) VALUES ('Dima')`,
+		squirrel.Insert("users").Columns("name").Values("amidman").PlaceholderFormat(squirrel.Dollar),
 	)
 
-	expectedName := "Dima"
+	assertUserExists(t, ctx, db, "Dima")
+	assertUserExists(t, ctx, db, "amidman")
+}
 
-	name := ""
+func assertUserExists(t *testing.T, ctx context.Context, db *sql.DB, name string) {
+	var userName string
 
-	err := db.QueryRowContext(context.Background(), "SELECT name FROM users").Scan(&name)
+	err := db.QueryRowContext(ctx, "SELECT name FROM users WHERE name = $1", name).Scan(&userName)
 	if err != nil {
-		t.Fatalf("select name from users, unexpected error: %+v", err)
+		t.Errorf("assert user by %q name, %s", name, err)
+
+		return
 	}
 
-	if expectedName != name {
-		t.Fatalf("wrong name, expected %s, actual %s", expectedName, name)
+	if userName != name {
+		t.Errorf("assert user by %q name, wrong name %s", name, userName)
 	}
 }

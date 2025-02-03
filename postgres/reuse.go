@@ -73,7 +73,7 @@ func (r *Reusable) Terminate(ctx context.Context) error {
 func (r *Reusable) run(
 	ctx context.Context,
 	migrations migrations.Migrations,
-	initialQueries ...string,
+	initialQueries ...Query,
 ) (db *sql.DB, term func(), err error) {
 	r.runDaemonOnce.Do(r.runDaemon)
 
@@ -94,7 +94,7 @@ func (r *Reusable) reuse(
 	ctx context.Context,
 	pgCnt Container,
 	migrations migrations.Migrations,
-	initialQueries ...string,
+	initialQueries ...Query,
 ) (db *sql.DB, term func(), err error) {
 	term = r.dm.Exit
 
@@ -121,9 +121,9 @@ func (r *Reusable) reuse(
 	}
 
 	for _, initialQuery := range initialQueries {
-		_, execErr := db.ExecContext(ctx, initialQuery)
-		if execErr != nil {
-			return db, term, fmt.Errorf("exec %s query, %w", initialQuery, execErr)
+		err = execQuery(ctx, db, initialQuery)
+		if err != nil {
+			return db, term, err
 		}
 	}
 
@@ -183,7 +183,7 @@ func ReuseForTesting(
 	t *testing.T,
 	reuse *Reusable,
 	migrations migrations.Migrations,
-	initialQueries ...string,
+	initialQueries ...Query,
 ) *sql.DB {
 	containers.SkipDisabled(t)
 
@@ -204,7 +204,7 @@ func Reuse(
 	ctx context.Context,
 	reuse *Reusable,
 	migrations migrations.Migrations,
-	initialQueries ...string,
+	initialQueries ...Query,
 ) (db *sql.DB, term func(), err error) {
 	return reuse.run(ctx, migrations, initialQueries...)
 }

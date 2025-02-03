@@ -1,9 +1,12 @@
 package postgrescontainer_test
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 	"testing"
 
+	"github.com/Masterminds/squirrel"
 	postgrescontainer "github.com/amidgo/containers/postgres"
 	goosemigrations "github.com/amidgo/containers/postgres/migrations/goose"
 	postgrescontainerrunner "github.com/amidgo/containers/postgres/runner"
@@ -42,10 +45,32 @@ func runReuseCase(reusable *postgrescontainer.Reusable) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Parallel()
 
-		_ = postgrescontainer.ReuseForTesting(t,
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		db := postgrescontainer.ReuseForTesting(t,
 			reusable,
 			goosemigrations.New("./testdata/migrations"),
 			"INSERT INTO users (name) VALUES ('Dima')",
+			squirrel.Insert("users").Columns("name").Values("amidman").PlaceholderFormat(squirrel.Dollar),
 		)
+
+		assertUserExists(t, ctx, db, "Dima")
+		assertUserExists(t, ctx, db, "amidman")
+	}
+}
+
+func assertUserExists(t *testing.T, ctx context.Context, db *sql.DB, name string) {
+	var userName string
+
+	err := db.QueryRowContext(ctx, "SELECT name FROM users WHERE name = $1", name).Scan(&userName)
+	if err != nil {
+		t.Errorf("assert user by %q name, %s", name, err)
+
+		return
+	}
+
+	if userName != name {
+		t.Errorf("assert user by %q name, wrong name %s", name, userName)
 	}
 }

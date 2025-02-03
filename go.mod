@@ -3,6 +3,7 @@ module github.com/amidgo/containers
 go 1.22
 
 require (
+	github.com/Masterminds/squirrel v1.5.4
 	github.com/jackc/pgx/v5 v5.7.1
 	github.com/minio/minio-go/v7 v7.0.77
 	github.com/pressly/goose/v3 v3.22.1
@@ -42,6 +43,8 @@ require (
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.8 // indirect
+	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
+	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mfridman/interpolate v0.0.2 // indirect

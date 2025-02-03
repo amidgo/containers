@@ -19,7 +19,7 @@ func RunForTestingConfig(
 	t *testing.T,
 	cfg *Config,
 	migrations migrations.Migrations,
-	initialQueries ...string,
+	initialQueries ...postgrescontainer.Query,
 ) *sql.DB {
 	containers.SkipDisabled(t)
 
@@ -39,7 +39,7 @@ func RunForTestingConfig(
 func RunForTesting(
 	t *testing.T,
 	migrations migrations.Migrations,
-	initialQueries ...string,
+	initialQueries ...postgrescontainer.Query,
 ) *sql.DB {
 	return RunForTestingConfig(
 		t,
@@ -52,7 +52,7 @@ func RunForTesting(
 func Run(
 	ctx context.Context,
 	migrations migrations.Migrations,
-	initialQueries ...string,
+	initialQueries ...postgrescontainer.Query,
 ) (db *sql.DB, term func(), err error) {
 	return RunConfig(ctx, nil, migrations, initialQueries...)
 }
@@ -61,7 +61,7 @@ func RunConfig(
 	ctx context.Context,
 	cfg *Config,
 	migrations migrations.Migrations,
-	initialQueries ...string,
+	initialQueries ...postgrescontainer.Query,
 ) (db *sql.DB, term func(), err error) {
 	pgCnt, err := RunContainer(cfg)(ctx)
 	if err != nil {
