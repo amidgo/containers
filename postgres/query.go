@@ -13,12 +13,6 @@ type sqlizer interface {
 	ToSql() (sql string, args []any, err error)
 }
 
-type StringSqlizer string
-
-func (s StringSqlizer) ToSql() (string, []any, error) {
-	return string(s), nil, nil
-}
-
 var errInvalidQueryType = errors.New("invalid query type, expected string or Query types")
 
 func execQuery(ctx context.Context, db *sql.DB, query Query) error {
