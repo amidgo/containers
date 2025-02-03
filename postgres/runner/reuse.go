@@ -1,4 +1,4 @@
-package postgrescontainerrunner
+package pgrunner
 
 import postgrescontainer "github.com/amidgo/containers/postgres"
 
