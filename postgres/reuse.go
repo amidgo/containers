@@ -19,24 +19,24 @@ type ReusableOption func(r *Reusable)
 
 func WithWaitDuration(duration time.Duration) ReusableOption {
 	return func(r *Reusable) {
-		r.waitDuration = duration
+		r.daemonWaitDuration = duration
 	}
 }
 
 type Reusable struct {
-	runDaemonOnce sync.Once
 	ccf           CreateContainerFunc
 	schemaCounter atomic.Int64
-	dm            *containers.ReusableDaemon
-	stopDaemon    context.CancelFunc
 
-	waitDuration time.Duration
+	runDaemonOnce      sync.Once
+	dm                 *containers.ReusableDaemon
+	stopDaemon         context.CancelFunc
+	daemonWaitDuration time.Duration
 }
 
 func NewReusable(ccf CreateContainerFunc, opts ...ReusableOption) *Reusable {
 	r := &Reusable{
-		ccf:          ccf,
-		waitDuration: defaultDuration,
+		ccf:                ccf,
+		daemonWaitDuration: defaultDuration,
 	}
 
 	for _, op := range opts {
@@ -53,7 +53,7 @@ func (r *Reusable) runDaemon() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	daemon := containers.RunReusableDaemon(ctx, r.waitDuration, ccf)
+	daemon := containers.RunReusableDaemon(ctx, r.daemonWaitDuration, ccf)
 
 	r.dm = daemon
 	r.stopDaemon = cancel
