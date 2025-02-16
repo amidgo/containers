@@ -1,4 +1,4 @@
-package postgrescontainer
+package postgres
 
 import (
 	"context"
