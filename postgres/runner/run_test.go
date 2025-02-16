@@ -1,4 +1,4 @@
-package pgrunner_test
+package postgresrunner_test
 
 import (
 	"context"

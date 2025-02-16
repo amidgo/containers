@@ -1,4 +1,4 @@
-package pgrunner
+package postgresrunner
 
 import (
 	"context"
