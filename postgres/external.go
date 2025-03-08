@@ -12,9 +12,7 @@ import (
 	"github.com/amidgo/containers/postgres/migrations"
 )
 
-var (
-	externalReusable = NewReusable(ExternalContainer(nil))
-)
+var externalReusable = NewReusable(ExternalContainer(nil))
 
 func ExternalReusable() *Reusable {
 	return externalReusable
@@ -73,9 +71,11 @@ func UseExternal(
 	migrations migrations.Migrations,
 	initialQueries ...Query,
 ) (db *sql.DB, term func(), err error) {
+	var cfg *ExternalContainerConfig
+
 	return UseExternalConfig(
 		ctx,
-		nil,
+		cfg,
 		migrations,
 		initialQueries...,
 	)
@@ -129,11 +129,11 @@ type externalContainer struct {
 	driverName       string
 }
 
-func (_ externalContainer) Terminate(ctx context.Context) error {
+func (_ externalContainer) Terminate(_ context.Context) error {
 	return nil
 }
 
-func (e externalContainer) Connect(ctx context.Context, args ...string) (*sql.DB, error) {
+func (e externalContainer) Connect(_ context.Context, args ...string) (*sql.DB, error) {
 	extraArgs := strings.Join(args, "&")
 
 	dataSourceName := e.connectionString + "?" + extraArgs

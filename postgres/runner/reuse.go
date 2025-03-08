@@ -1,11 +1,9 @@
 package postgresrunner
 
-import postgrescontainer "github.com/amidgo/containers/postgres"
+import pgcnt "github.com/amidgo/containers/postgres"
 
-var (
-	reusable = postgrescontainer.NewReusable(RunContainer(nil))
-)
+var reusable = pgcnt.NewReusable(RunContainer(nil))
 
-func Reusable() *postgrescontainer.Reusable {
+func Reusable() *pgcnt.Reusable {
 	return reusable
 }

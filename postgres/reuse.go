@@ -13,6 +13,40 @@ import (
 	"github.com/amidgo/containers/postgres/migrations"
 )
 
+func ReuseForTesting(
+	t *testing.T,
+	reuse *Reusable,
+	migrations migrations.Migrations,
+	initialQueries ...Query,
+) *sql.DB {
+	containers.SkipDisabled(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	db, term, err := Reuse(ctx, reuse, migrations, initialQueries...)
+	t.Cleanup(term)
+
+	if err != nil {
+		t.Fatalf("reuse container, err: %s", err)
+	}
+
+	return db
+}
+
+func Reuse(
+	ctx context.Context,
+	reuse *Reusable,
+	migrations migrations.Migrations,
+	initialQueries ...Query,
+) (db *sql.DB, term func(), err error) {
+	return reuse.run(ctx, migrations, initialQueries...)
+}
+
+func EnvContainer(ctx context.Context) (Container, error) {
+	return nil, nil
+}
+
 const defaultDuration = time.Second
 
 type ReusableOption func(r *Reusable)
@@ -177,38 +211,4 @@ func (r *Reusable) enter(ctx context.Context) (Container, error) {
 	}
 
 	return cnt.(Container), nil
-}
-
-func ReuseForTesting(
-	t *testing.T,
-	reuse *Reusable,
-	migrations migrations.Migrations,
-	initialQueries ...Query,
-) *sql.DB {
-	containers.SkipDisabled(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
-	db, term, err := Reuse(ctx, reuse, migrations, initialQueries...)
-	t.Cleanup(term)
-
-	if err != nil {
-		t.Fatalf("reuse container, err: %s", err)
-	}
-
-	return db
-}
-
-func Reuse(
-	ctx context.Context,
-	reuse *Reusable,
-	migrations migrations.Migrations,
-	initialQueries ...Query,
-) (db *sql.DB, term func(), err error) {
-	return reuse.run(ctx, migrations, initialQueries...)
-}
-
-func EnvContainer(ctx context.Context) (Container, error) {
-	return nil, nil
 }
