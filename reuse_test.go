@@ -69,7 +69,7 @@ func Test_ReuseDaemon_Zero_User_Exit(t *testing.T) {
 
 	daemon := containers.RunReusableDaemon(ctx, waitDuration, ccf)
 
-	notifyCtx, cancel := context.WithCancel(ctx)
+	notifyCtx, notify := context.WithCancel(ctx)
 
 	wg := sync.WaitGroup{}
 
@@ -78,7 +78,7 @@ func Test_ReuseDaemon_Zero_User_Exit(t *testing.T) {
 	go func() {
 		defer wg.Done()
 
-		simpleEnterAndExit(t, daemon, cancel, cnt, waitDuration)
+		simpleEnterAndExit(t, daemon, notify, cnt, waitDuration)
 	}()
 
 	go func() {

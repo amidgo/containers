@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/Masterminds/squirrel"
-	goosemigrations "github.com/amidgo/containers/postgrescontainer/migrations/goose"
-	postgrescontainerrunner "github.com/amidgo/containers/postgrescontainer/runner"
+	goosemigrations "github.com/amidgo/containers/postgres/migrations/goose"
+	postgrescontainerrunner "github.com/amidgo/containers/postgres/runner"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
