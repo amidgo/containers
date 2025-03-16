@@ -43,10 +43,6 @@ func Reuse(
 	return reuse.run(ctx, migrations, initialQueries...)
 }
 
-func EnvContainer(ctx context.Context) (Container, error) {
-	return nil, nil
-}
-
 const defaultDuration = time.Second
 
 type ReusableOption func(r *Reusable)
