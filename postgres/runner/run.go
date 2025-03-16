@@ -17,7 +17,7 @@ import (
 
 func RunForTestingConfig(
 	t *testing.T,
-	cfg *Config,
+	cfg *ContainerConfig,
 	migrations migrations.Migrations,
 	initialQueries ...postgrescontainer.Query,
 ) *sql.DB {
@@ -59,7 +59,7 @@ func Run(
 
 func RunConfig(
 	ctx context.Context,
-	cfg *Config,
+	cfg *ContainerConfig,
 	migrations migrations.Migrations,
 	initialQueries ...postgrescontainer.Query,
 ) (db *sql.DB, term func(), err error) {
@@ -71,64 +71,86 @@ func RunConfig(
 	return postgrescontainer.Init(ctx, pgCnt, migrations, initialQueries...)
 }
 
-type Config struct {
-	DBName        string
-	DBUser        string
-	DBPassword    string
-	PostgresImage string
-	DriverName    string
+type ContainerConfig struct {
+	DBName                    string
+	DBUser                    string
+	DBPassword                string
+	PostgresImage             string
+	DriverName                string
+	DisableTestContainersLogs bool
 }
 
-const (
-	defaultDBName        = "test"
-	defaultDBUser        = "admin"
-	defaultDBPassword    = "admin"
-	defaultPostgresImage = "postgres:16-alpine"
-	defaultDriverName    = "pgx"
-)
+func containerDBName(cfg *ContainerConfig) string {
+	const defaultDBName = "test"
 
-var defaultConfig = &Config{
-	DBName:        defaultDBName,
-	DBUser:        defaultDBUser,
-	DBPassword:    defaultDBPassword,
-	PostgresImage: defaultPostgresImage,
-	DriverName:    defaultDriverName,
+	if cfg != nil && cfg.DBName != "" {
+		return cfg.DBName
+	}
+
+	return defaultDBName
 }
 
-func RunContainer(cfg *Config) postgrescontainer.CreateContainerFunc {
+func containerDBUser(cfg *ContainerConfig) string {
+	const defaultDBUser = "admin"
+
+	if cfg != nil && cfg.DBUser != "" {
+		return cfg.DBUser
+	}
+
+	return defaultDBUser
+}
+
+func containerDBPassword(cfg *ContainerConfig) string {
+	const defaultDBPassword = "admin"
+
+	if cfg != nil && cfg.DBPassword != "" {
+		return cfg.DBPassword
+	}
+
+	return defaultDBPassword
+}
+
+func containerPostgresImage(cfg *ContainerConfig) string {
+	const defaultPostgresImage = "postgres:16-alpine"
+
+	if cfg != nil && cfg.PostgresImage != "" {
+		return cfg.PostgresImage
+	}
+
+	envPostgresImage := os.Getenv("CONTAINERS_POSTGRES_IMAGE")
+	if envPostgresImage != "" {
+		return envPostgresImage
+	}
+
+	return defaultPostgresImage
+}
+
+func containerDriverName(cfg *ContainerConfig) string {
+	const defaultDriverName = "pgx"
+
+	if cfg != nil && cfg.DriverName != "" {
+		return cfg.DriverName
+	}
+
+	return defaultDriverName
+}
+
+func containerDisableTestContainersLogs(cfg *ContainerConfig) bool {
+	if cfg == nil {
+		return false
+	}
+
+	return cfg.DisableTestContainersLogs
+}
+
+func RunContainer(cfg *ContainerConfig) postgrescontainer.CreateContainerFunc {
 	return func(ctx context.Context) (postgrescontainer.Container, error) {
-		if cfg == nil {
-			cfg = defaultConfig
-		}
+		postgresImage := containerPostgresImage(cfg)
+		dbName := containerDBName(cfg)
+		dbUser := containerDBUser(cfg)
+		dbPassword := containerDBPassword(cfg)
 
-		dbName := cfg.DBName
-		dbUser := cfg.DBUser
-		dbPassword := cfg.DBPassword
-		postgresImage := os.Getenv("CONTAINERS_POSTGRES_IMAGE")
-		driverName := cfg.DriverName
-
-		if dbName == "" {
-			dbName = defaultDBName
-		}
-
-		if dbUser == "" {
-			dbUser = defaultDBUser
-		}
-
-		if dbPassword == "" {
-			dbPassword = defaultDBPassword
-		}
-
-		if postgresImage == "" {
-			postgresImage = defaultPostgresImage
-		}
-
-		if driverName == "" {
-			driverName = defaultDriverName
-		}
-
-		postgresContainer, err := postgres.Run(ctx,
-			postgresImage,
+		opts := []testcontainers.ContainerCustomizer{
 			postgres.WithDatabase(dbName),
 			postgres.WithUsername(dbUser),
 			postgres.WithPassword(dbPassword),
@@ -136,10 +158,21 @@ func RunContainer(cfg *Config) postgrescontainer.CreateContainerFunc {
 				wait.ForLog("database system is ready to accept connections").
 					WithOccurrence(2),
 			),
+		}
+
+		if containerDisableTestContainersLogs(cfg) {
+			opts = append(opts, testcontainers.WithLogger(noopLogger{}))
+		}
+
+		postgresContainer, err := postgres.Run(ctx,
+			postgresImage,
+			opts...,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("run container, %w", err)
 		}
+
+		driverName := containerDriverName(cfg)
 
 		cnt := container{
 			driverName: driverName,
@@ -150,6 +183,10 @@ func RunContainer(cfg *Config) postgrescontainer.CreateContainerFunc {
 	}
 
 }
+
+type noopLogger struct{}
+
+func (noopLogger) Printf(string, ...interface{}) {}
 
 type container struct {
 	driverName string

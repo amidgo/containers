@@ -86,35 +86,36 @@ type ExternalContainerConfig struct {
 	ConnectionString string
 }
 
-const (
-	defaultDriverName       = "pgx"
-	connectionStringEnvName = "CONTAINERS_POSTGRES_CONNECTION_STRING"
-)
+func externalContainerDriverName(cfg *ExternalContainerConfig) string {
+	const defaultDriverName = "pgx"
 
-var (
-	defaultConfig = &ExternalContainerConfig{
-		DriverName: defaultDriverName,
+	if cfg != nil && cfg.DriverName != "" {
+		return cfg.DriverName
 	}
-)
+
+	return defaultDriverName
+}
+
+func externalContainerConnectionString(cfg *ExternalContainerConfig) string {
+	const connectionStringEnvName = "CONTAINERS_POSTGRES_CONNECTION_STRING"
+
+	if cfg != nil && cfg.ConnectionString != "" {
+		return cfg.ConnectionString
+	}
+
+	defaultConnectionString := os.Getenv(connectionStringEnvName)
+
+	if defaultConnectionString == "" {
+		panic("connection string is empty and environment variable " + connectionStringEnvName + " is empty")
+	}
+
+	return defaultConnectionString
+}
 
 func ExternalContainer(cfg *ExternalContainerConfig) CreateContainerFunc {
 	return func(context.Context) (Container, error) {
-		if cfg == nil {
-			cfg = defaultConfig
-		}
-
-		driverName := cfg.DriverName
-		if driverName == "" {
-			driverName = defaultConfig.DriverName
-		}
-
-		connectionString := cfg.ConnectionString
-		if connectionString == "" {
-			connectionString = os.Getenv(connectionStringEnvName)
-			if connectionString == "" {
-				panic("connection string is empty and environment variable " + connectionStringEnvName + " is empty")
-			}
-		}
+		connectionString := externalContainerConnectionString(cfg)
+		driverName := externalContainerDriverName(cfg)
 
 		return externalContainer{
 				connectionString: connectionString,
