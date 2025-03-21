@@ -19,7 +19,7 @@ func Init(
 	term = func() {
 		terminateErr := pgCnt.Terminate(ctx)
 		if terminateErr != nil {
-			log.Printf("failed to terminate container: %s", terminateErr)
+			log.Printf("failed to terminate postgres container: %s", terminateErr)
 		}
 	}
 
@@ -33,7 +33,7 @@ func Init(
 
 		terminateErr := pgCnt.Terminate(ctx)
 		if terminateErr != nil {
-			log.Printf("failed to terminate container: %s", terminateErr)
+			log.Printf("failed to terminate postgres container: %s", terminateErr)
 		}
 	}
 
