@@ -8,6 +8,7 @@ import (
 	"github.com/Masterminds/squirrel"
 	goosemigrations "github.com/amidgo/containers/postgres/migrations/goose"
 	postgrescontainerrunner "github.com/amidgo/containers/postgres/runner"
+	testmigrations "github.com/amidgo/containers/postgres/runner/testdata/migrations"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -21,6 +22,23 @@ func Test_Postgres_Migrations_WithInitialQuery(t *testing.T) {
 	db := postgrescontainerrunner.RunForTesting(
 		t,
 		goosemigrations.New("./testdata/migrations"),
+		`INSERT INTO users (name) VALUES ('Dima')`,
+		squirrel.Insert("users").Columns("name").Values("amidman").PlaceholderFormat(squirrel.Dollar),
+	)
+
+	assertUserExists(t, ctx, db, "Dima")
+	assertUserExists(t, ctx, db, "amidman")
+}
+
+func Test_Postgres_EmbedMigrations_WithInitialQuery(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	db := postgrescontainerrunner.RunForTesting(
+		t,
+		goosemigrations.Embed(testmigrations.Embed()),
 		`INSERT INTO users (name) VALUES ('Dima')`,
 		squirrel.Insert("users").Columns("name").Values("amidman").PlaceholderFormat(squirrel.Dollar),
 	)
