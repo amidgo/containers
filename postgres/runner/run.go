@@ -31,6 +31,8 @@ func RunForTestingConfig(
 
 	if err != nil {
 		t.Fatal(err)
+
+		return nil
 	}
 
 	return db

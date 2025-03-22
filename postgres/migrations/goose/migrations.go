@@ -3,6 +3,7 @@ package goosemigrations
 import (
 	"context"
 	"database/sql"
+	"embed"
 	"fmt"
 	"io/fs"
 	"os"
@@ -16,12 +17,14 @@ type gooseMigrations struct {
 }
 
 func New(folder string) migrations.Migrations {
-	return gooseMigrations{
-		fs: os.DirFS(folder),
-	}
+	return FS(os.DirFS(folder))
 }
 
-func Embed(fs fs.FS) migrations.Migrations {
+func Embed(fs embed.FS) migrations.Migrations {
+	return FS(fs)
+}
+
+func FS(fs fs.FS) migrations.Migrations {
 	return gooseMigrations{
 		fs: fs,
 	}

@@ -29,6 +29,8 @@ func ReuseForTesting(
 
 	if err != nil {
 		t.Fatalf("reuse container, err: %s", err)
+
+		return nil
 	}
 
 	return db
