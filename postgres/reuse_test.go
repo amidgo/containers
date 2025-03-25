@@ -3,14 +3,17 @@ package postgrescontainer_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"testing"
 
 	"github.com/Masterminds/squirrel"
 	postgrescontainer "github.com/amidgo/containers/postgres"
+	"github.com/amidgo/containers/postgres/migrations"
 	goosemigrations "github.com/amidgo/containers/postgres/migrations/goose"
 	postgrescontainerrunner "github.com/amidgo/containers/postgres/runner"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -23,6 +26,51 @@ func Test_ReuseForTesting(t *testing.T) {
 
 	t.Run("GlobalReuseable", testReuse(postgrescontainerrunner.Reusable()))
 	t.Run("NewReuseable_RunContainer", testReuse(testReusable))
+}
+
+func Test_GooseMigrations(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	db := postgrescontainer.ReuseForTesting(t,
+		postgrescontainerrunner.Reusable(),
+		migrations.Nil,
+	)
+
+	gooseMigrations := goosemigrations.New("./testdata/migrations")
+
+	err := gooseMigrations.Up(ctx, db)
+	if err != nil {
+		t.Fatalf("up migrations: %s", err)
+	}
+
+	err = gooseMigrations.Down(ctx, db)
+	if err != nil {
+		t.Fatalf("down migrations: %s", err)
+	}
+
+	assertUsersTableDeleted(t, ctx, db)
+
+	err = gooseMigrations.Up(ctx, db)
+	if err != nil {
+		t.Fatalf("up migrations after down: %s", err)
+	}
+}
+
+func assertUsersTableDeleted(t *testing.T, ctx context.Context, db *sql.DB) {
+	query := "SELECT * FROM users"
+
+	_, err := db.ExecContext(ctx, query)
+
+	var pgErr *pgconn.PgError
+
+	if !errors.As(err, &pgErr) {
+		t.Fatalf("wrong error type, %+v", err)
+	}
+
+	if pgErr.Code != "42P01" {
+		t.Fatalf("unexpected error code, expected %s, actual %s", "42P01", pgErr.Code)
+	}
 }
 
 func testReuse(reusable *postgrescontainer.Reusable) func(t *testing.T) {
