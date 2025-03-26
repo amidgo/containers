@@ -38,7 +38,7 @@ func (g gooseMigrations) Up(ctx context.Context, db *sql.DB) error {
 
 	report, err := gooseProvider.Up(ctx)
 	if err != nil {
-		return fmt.Errorf("up provider migrations, %w", err)
+		return fmt.Errorf("up migrations, %w", err)
 	}
 
 	for _, r := range report {
@@ -60,7 +60,7 @@ func (g gooseMigrations) Down(ctx context.Context, db *sql.DB) error {
 
 	report, err := gooseProvider.DownTo(ctx, 0)
 	if err != nil {
-		return fmt.Errorf("up provider migrations, %w", err)
+		return fmt.Errorf("down migrations, %w", err)
 	}
 
 	for _, r := range report {
