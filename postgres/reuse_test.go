@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/Masterminds/squirrel"
@@ -37,7 +38,11 @@ func Test_GooseMigrations(t *testing.T) {
 		migrations.Nil,
 	)
 
-	gooseMigrations := goosemigrations.New("./testdata/migrations")
+	gooseMigrations := goosemigrations.New(
+		os.DirFS(
+			"./testdata/migrations",
+		),
+	)
 
 	err := gooseMigrations.Up(ctx, db)
 	if err != nil {
@@ -98,7 +103,11 @@ func runReuseCase(reusable *postgrescontainer.Reusable) func(t *testing.T) {
 
 		db := postgrescontainer.ReuseForTesting(t,
 			reusable,
-			goosemigrations.New("./testdata/migrations"),
+			goosemigrations.New(
+				os.DirFS(
+					"./testdata/migrations",
+				),
+			),
 			"INSERT INTO users (name) VALUES ('Dima')",
 			squirrel.Insert("users").Columns("name").Values("amidman").PlaceholderFormat(squirrel.Dollar),
 		)

@@ -3,6 +3,7 @@ package postgresrunner_test
 import (
 	"context"
 	"database/sql"
+	"os"
 	"testing"
 
 	"github.com/Masterminds/squirrel"
@@ -19,9 +20,13 @@ func Test_Postgres_Migrations_WithInitialQuery(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
+	migrations := goosemigrations.New(
+		os.DirFS("./testdata/migrations"),
+	)
+
 	db := postgrescontainerrunner.RunForTesting(
 		t,
-		goosemigrations.New("./testdata/migrations"),
+		migrations,
 		`INSERT INTO users (name) VALUES ('Dima')`,
 		squirrel.Insert("users").Columns("name").Values("amidman").PlaceholderFormat(squirrel.Dollar),
 	)
@@ -38,7 +43,7 @@ func Test_Postgres_EmbedMigrations_WithInitialQuery(t *testing.T) {
 
 	db := postgrescontainerrunner.RunForTesting(
 		t,
-		goosemigrations.Embed(testmigrations.Embed()),
+		goosemigrations.New(testmigrations.Embed()),
 		`INSERT INTO users (name) VALUES ('Dima')`,
 		squirrel.Insert("users").Columns("name").Values("amidman").PlaceholderFormat(squirrel.Dollar),
 	)

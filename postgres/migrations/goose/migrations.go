@@ -3,10 +3,8 @@ package goosemigrations
 import (
 	"context"
 	"database/sql"
-	"embed"
 	"fmt"
 	"io/fs"
-	"os"
 
 	"github.com/amidgo/containers/postgres/migrations"
 	"github.com/pressly/goose/v3"
@@ -16,15 +14,7 @@ type gooseMigrations struct {
 	fs fs.FS
 }
 
-func New(folder string) migrations.Migrations {
-	return FS(os.DirFS(folder))
-}
-
-func Embed(fs embed.FS) migrations.Migrations {
-	return FS(fs)
-}
-
-func FS(fs fs.FS) migrations.Migrations {
+func New(fs fs.FS) migrations.Migrations {
 	return gooseMigrations{
 		fs: fs,
 	}
