@@ -11,17 +11,17 @@ import (
 )
 
 type gooseMigrations struct {
-	fs fs.FS
+	fsys fs.FS
 }
 
-func New(fs fs.FS) migrations.Migrations {
+func New(fsys fs.FS) migrations.Migrations {
 	return gooseMigrations{
-		fs: fs,
+		fsys: fsys,
 	}
 }
 
 func (g gooseMigrations) Up(ctx context.Context, db *sql.DB) error {
-	gooseProvider, err := goose.NewProvider(goose.DialectPostgres, db, g.fs)
+	gooseProvider, err := goose.NewProvider(goose.DialectPostgres, db, g.fsys)
 	if err != nil {
 		return fmt.Errorf("create provider, %w", err)
 	}
@@ -43,7 +43,7 @@ func (g gooseMigrations) Up(ctx context.Context, db *sql.DB) error {
 }
 
 func (g gooseMigrations) Down(ctx context.Context, db *sql.DB) error {
-	gooseProvider, err := goose.NewProvider(goose.DialectPostgres, db, g.fs)
+	gooseProvider, err := goose.NewProvider(goose.DialectPostgres, db, g.fsys)
 	if err != nil {
 		return fmt.Errorf("create provider, %w", err)
 	}

@@ -1,9 +1,10 @@
 package miniorunner_test
 
 import (
+	"bytes"
 	"context"
 	"io"
-	"strings"
+	"slices"
 	"testing"
 
 	miniocontainer "github.com/amidgo/containers/minio"
@@ -61,14 +62,14 @@ func requireInitialFileExists(
 		t.Fatalf("get object %s from bucket %s, unexpected error: %+v", initialFile.Name, bucketName, err)
 	}
 
-	objectData := &strings.Builder{}
+	objectData := &bytes.Buffer{}
 
 	_, err = io.Copy(objectData, object)
 	if err != nil {
 		t.Fatalf("read data from object %s from bucket %s, unexpected error: %+v", initialFile.Name, bucketName, err)
 	}
 
-	if objectData.String() != initialFile.Content {
+	if !slices.Equal(objectData.Bytes(), initialFile.Content) {
 		t.Fatalf(
 			"objectData from %s from bucket %s not equal,\nexpected:\n\t%s\nactual:\n\t%s",
 			initialFile.Name,
@@ -117,7 +118,7 @@ func Test_Minio(t *testing.T) {
 					Files: []miniocontainer.File{
 						{
 							Name:    "Gagarin.txt",
-							Content: "Поехали!",
+							Content: []byte("Поехали!"),
 						},
 					},
 				},
@@ -126,7 +127,7 @@ func Test_Minio(t *testing.T) {
 					Files: []miniocontainer.File{
 						{
 							Name:    "Titov.txt",
-							Content: "Второй...",
+							Content: []byte("Второй..."),
 						},
 					},
 				},

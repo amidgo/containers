@@ -1,10 +1,13 @@
 package miniocontainer
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io/fs"
 	"log"
-	"strings"
+	"path"
+	"testing"
 
 	"github.com/minio/minio-go/v7"
 	minioclient "github.com/minio/minio-go/v7"
@@ -17,7 +20,54 @@ type Bucket struct {
 
 type File struct {
 	Name    string
-	Content string
+	Content []byte
+}
+
+func MustFiles(fsys fs.FS) []File {
+	files, err := Files(fsys)
+	if err != nil {
+		panic(err)
+	}
+
+	return files
+}
+
+func Files(fsys fs.FS) ([]File, error) {
+	filePaths, err := fs.Glob(fsys, "*")
+	if err != nil {
+		return nil, fmt.Errorf("glob files by pattern, %w", err)
+	}
+
+	if testing.Testing() {
+		log.Printf("filePaths: %+v", filePaths)
+	}
+
+	files := make([]File, 0, len(filePaths))
+	err = fs.WalkDir(fsys, ".", func(filePath string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		content, err := fs.ReadFile(fsys, filePath)
+		if err != nil {
+			return fmt.Errorf("read file, %W", err)
+		}
+
+		_, name := path.Split(filePath)
+
+		files = append(files, File{Name: name, Content: content})
+
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("walk dir, %w", err)
+	}
+
+	return files, nil
 }
 
 func Init(
@@ -74,11 +124,13 @@ func insertSingleBucket(ctx context.Context, minioClient *minio.Client, bucket B
 	putObjectOpts := minioclient.PutObjectOptions{}
 
 	for _, file := range bucket.Files {
+		objectSize := int64(len(file.Content))
+
 		_, err = minioClient.PutObject(ctx,
 			bucket.Name,
 			file.Name,
-			strings.NewReader(file.Content),
-			-1,
+			bytes.NewBuffer(file.Content),
+			objectSize,
 			putObjectOpts,
 		)
 		if err != nil {
