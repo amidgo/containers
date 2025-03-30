@@ -107,18 +107,14 @@ func insertBuckets(ctx context.Context, minioClient *minio.Client, buckets ...Bu
 }
 
 func insertSingleBucket(ctx context.Context, minioClient *minio.Client, bucket Bucket) error {
-	bucketExists, err := minioClient.BucketExists(ctx, bucket.Name)
-	if err != nil {
-		return fmt.Errorf("get bucket exits %s, %w", bucket.Name, err)
-	}
+	makeBucketOpts := minioclient.MakeBucketOptions{}
 
-	if !bucketExists {
-		makeBucketOpts := minioclient.MakeBucketOptions{}
+	err := minioClient.MakeBucket(ctx, bucket.Name, makeBucketOpts)
 
-		err := minioClient.MakeBucket(ctx, bucket.Name, makeBucketOpts)
-		if err != nil {
-			return fmt.Errorf("create bucket %s, %w", bucket.Name, err)
-		}
+	switch {
+	case isBucketExistsError(err):
+	case err != nil:
+		return fmt.Errorf("create bucket %s, %w", bucket.Name, err)
 	}
 
 	putObjectOpts := minioclient.PutObjectOptions{}
@@ -139,4 +135,15 @@ func insertSingleBucket(ctx context.Context, minioClient *minio.Client, bucket B
 	}
 
 	return nil
+}
+
+func isBucketExistsError(err error) bool {
+	resp := minio.ToErrorResponse(err)
+
+	if testing.Testing() {
+		log.Printf("resp: statusCode: %d, code: %s", resp.StatusCode, resp.Code)
+		log.Printf("err: %+v", err)
+	}
+
+	return resp.Code == "BucketAlreadyOwnedByYou"
 }

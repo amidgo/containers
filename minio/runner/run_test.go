@@ -103,6 +103,9 @@ func Test_Minio(t *testing.T) {
 					Name: "first",
 				},
 				{
+					Name: "first",
+				},
+				{
 					Name: "second",
 				},
 				{
