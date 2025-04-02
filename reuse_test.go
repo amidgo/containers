@@ -3,6 +3,7 @@ package containers_test
 import (
 	"context"
 	"errors"
+	"math/rand/v2"
 	"reflect"
 	"sync"
 	"sync/atomic"
@@ -88,6 +89,80 @@ func Test_ReuseDaemon_Zero_User_Exit(t *testing.T) {
 	}()
 
 	wg.Wait()
+}
+
+func Test_ManyConcurrentEnterAndExit(t *testing.T) {
+	t.Parallel()
+
+	waitDuration := time.Second
+
+	called := false
+	errDoubleCffCall := errors.New("unexpected, second call to ccf")
+
+	ccf := containers.CreateContainerFunc(func(ctx context.Context) (any, error) {
+		<-time.After(time.Second * 2)
+
+		if called {
+			return false, errDoubleCffCall
+		}
+
+		called = true
+
+		return true, nil
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	daemon := containers.RunReusableDaemon(ctx, waitDuration, ccf)
+
+	count := 1000
+	if testing.Short() {
+		count = 10
+	}
+
+	runConcurrentEnters(t, ctx, daemon, count)
+}
+
+func runConcurrentEnters(t *testing.T, ctx context.Context, daemon *containers.ReusableDaemon, count int) {
+	sendCh := make(chan struct{})
+	defer close(sendCh)
+
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+
+	for range count {
+		go func() {
+			_, err := daemon.Enter(ctx)
+			if err != nil {
+				cancel(err)
+			}
+
+			sleepDuration := time.Duration(rand.IntN(1000)) * time.Millisecond
+			<-time.After(sleepDuration)
+
+			sendCh <- struct{}{}
+		}()
+	}
+
+	entered := 0
+
+	for {
+		select {
+		case <-ctx.Done():
+			t.Fatal(context.Cause(ctx))
+
+			return
+		case <-sendCh:
+			entered++
+
+			daemon.Exit()
+
+			if entered == count {
+				return
+			}
+		}
+	}
 }
 
 func simpleEnterAndExit(

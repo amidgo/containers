@@ -21,9 +21,23 @@ import (
 func Test_ReuseForTesting(t *testing.T) {
 	t.Parallel()
 
-	testReusable := postgrescontainer.NewReusable(
-		postgrescontainerrunner.RunContainer(nil),
+	called := false
+
+	errCalledTwice := errors.New("called twice")
+
+	testCcf := postgrescontainer.CreateContainerFunc(
+		func(ctx context.Context) (postgrescontainer.Container, error) {
+			if called {
+				return nil, errCalledTwice
+			}
+
+			called = true
+
+			return postgrescontainerrunner.RunContainer(nil)(ctx)
+		},
 	)
+
+	testReusable := postgrescontainer.NewReusable(testCcf)
 
 	t.Run("GlobalReuseable", testReuse(postgrescontainerrunner.Reusable()))
 	t.Run("NewReuseable_RunContainer", testReuse(testReusable))

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"strconv"
-	"sync/atomic"
 	"time"
 )
 
@@ -32,7 +31,6 @@ type ReusableDaemon struct {
 	activeUsers  int
 	cnt          any
 	waitDuration time.Duration
-	stopped      atomic.Bool
 	mainCtx      context.Context
 	termCtx      context.Context
 
@@ -50,12 +48,14 @@ func RunReusableDaemon(
 	termCtx, cancel := context.WithCancel(context.Background())
 
 	daemon := &ReusableDaemon{
+		activeUsers:  0,
+		cnt:          nil,
 		waitDuration: waitDuration,
+		mainCtx:      ctx,
+		termCtx:      termCtx,
 		reqCh:        make(chan reuseContainerRequest),
 		respCh:       make(chan reuseContainerResponse),
 		ccf:          ccf,
-		mainCtx:      ctx,
-		termCtx:      termCtx,
 	}
 
 	go func() {
@@ -134,6 +134,10 @@ func (d *ReusableDaemon) handlePositiveActiveUsers(ctx context.Context) {
 			}
 
 			return
+		}
+
+		if cnt == nil {
+			panic("nil container returned")
 		}
 
 		d.cnt = cnt
