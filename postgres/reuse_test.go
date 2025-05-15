@@ -49,7 +49,7 @@ func Test_ReuseForTesting(t *testing.T) {
 
 	testCcf := postgrescontainer.CreateContainerFunc(
 		func(ctx context.Context) (postgrescontainer.Container, error) {
-			if count > 1 || count < 0 {
+			if count != 0 {
 				return nil, errCalledTwice
 			}
 
