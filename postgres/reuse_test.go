@@ -18,22 +18,50 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
+type containerTerminateWrapper struct {
+	cnt  postgrescontainer.Container
+	term func()
+}
+
+func (c containerTerminateWrapper) Connect(ctx context.Context, args ...string) (*sql.DB, error) {
+	return c.cnt.Connect(ctx, args...)
+}
+
+func (c containerTerminateWrapper) Terminate(ctx context.Context) error {
+	c.term()
+
+	return c.cnt.Terminate(ctx)
+}
+
+func onTerminate(cnt postgrescontainer.Container, f func()) postgrescontainer.Container {
+	return containerTerminateWrapper{
+		cnt:  cnt,
+		term: f,
+	}
+}
+
 func Test_ReuseForTesting(t *testing.T) {
 	t.Parallel()
 
-	called := false
+	count := 0
 
 	errCalledTwice := errors.New("called twice")
 
 	testCcf := postgrescontainer.CreateContainerFunc(
 		func(ctx context.Context) (postgrescontainer.Container, error) {
-			if called {
+			if count > 1 || count < 0 {
 				return nil, errCalledTwice
 			}
 
-			called = true
+			count++
 
-			return postgrescontainerrunner.RunContainer(nil)(ctx)
+			cnt, err := postgrescontainerrunner.RunContainer(nil)(ctx)
+
+			cnt = onTerminate(cnt, func() {
+				count--
+			})
+
+			return cnt, err
 		},
 	)
 

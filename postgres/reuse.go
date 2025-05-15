@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math/rand/v2"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -56,8 +56,7 @@ func WithWaitDuration(duration time.Duration) ReusableOption {
 }
 
 type Reusable struct {
-	ccf           CreateContainerFunc
-	schemaCounter atomic.Int64
+	ccf CreateContainerFunc
 
 	runDaemonOnce      sync.Once
 	dm                 *containers.ReusableDaemon
@@ -179,9 +178,7 @@ func (r *Reusable) createNewSchemaInContainer(ctx context.Context, pgCnt Contain
 }
 
 func (r *Reusable) createSchema(ctx context.Context, db *sql.DB) (schemaName string, err error) {
-	schemaCount := r.schemaCounter.Add(1)
-
-	schemaName = fmt.Sprintf("public%d", schemaCount)
+	schemaName = fmt.Sprintf("public%d", rand.Int64())
 
 	query := fmt.Sprintf("CREATE SCHEMA %s", schemaName)
 

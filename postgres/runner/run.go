@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"os"
 	"testing"
 
@@ -199,6 +200,10 @@ func (c container) Connect(ctx context.Context, args ...string) (*sql.DB, error)
 	dataSourceName, err := c.cnt.ConnectionString(ctx, args...)
 	if err != nil {
 		return nil, fmt.Errorf("get connection string, %w", err)
+	}
+
+	if testing.Testing() {
+		log.Printf("dataSourceName: %s", dataSourceName)
 	}
 
 	db, err := sql.Open(c.driverName, dataSourceName)
