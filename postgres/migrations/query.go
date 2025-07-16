@@ -1,4 +1,4 @@
-package postgrescontainer
+package migrations
 
 import (
 	"context"
@@ -15,7 +15,7 @@ type sqlizer interface {
 
 var errInvalidQueryType = errors.New("invalid query type, expected string or sqlizer types")
 
-func execQuery(ctx context.Context, db *sql.DB, query Query) error {
+func ExecQuery(ctx context.Context, db *sql.DB, query Query) error {
 	switch query := query.(type) {
 	case sqlizer:
 		return execSqlizer(ctx, db, query)

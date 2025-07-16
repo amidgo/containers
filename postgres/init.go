@@ -12,8 +12,8 @@ import (
 func Init(
 	ctx context.Context,
 	pgCnt Container,
-	migrations migrations.Migrations,
-	initialQueries ...Query,
+	mig migrations.Migrations,
+	initialQueries ...migrations.Query,
 ) (db *sql.DB, term func(), err error) {
 	// Clean up the container
 	term = func() {
@@ -37,15 +37,15 @@ func Init(
 		}
 	}
 
-	if migrations != nil {
-		err = migrations.Up(ctx, db)
+	if mig != nil {
+		err = mig.Up(ctx, db)
 		if err != nil {
 			return db, term, fmt.Errorf("up migrations, %w", err)
 		}
 	}
 
 	for _, initialQuery := range initialQueries {
-		err = execQuery(ctx, db, initialQuery)
+		err = migrations.ExecQuery(ctx, db, initialQuery)
 		if err != nil {
 			return db, term, err
 		}

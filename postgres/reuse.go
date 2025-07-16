@@ -16,15 +16,15 @@ import (
 func ReuseForTesting(
 	t *testing.T,
 	reuse *Reusable,
-	migrations migrations.Migrations,
-	initialQueries ...Query,
+	mig migrations.Migrations,
+	initialQueries ...migrations.Query,
 ) *sql.DB {
 	containers.SkipDisabled(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	db, term, err := Reuse(ctx, reuse, migrations, initialQueries...)
+	db, term, err := Reuse(ctx, reuse, mig, initialQueries...)
 	t.Cleanup(term)
 
 	if err != nil {
@@ -39,10 +39,10 @@ func ReuseForTesting(
 func Reuse(
 	ctx context.Context,
 	reuse *Reusable,
-	migrations migrations.Migrations,
-	initialQueries ...Query,
+	mig migrations.Migrations,
+	initialQueries ...migrations.Query,
 ) (db *sql.DB, term func(), err error) {
-	return reuse.run(ctx, migrations, initialQueries...)
+	return reuse.run(ctx, mig, initialQueries...)
 }
 
 const defaultDuration = time.Second
@@ -103,8 +103,8 @@ func (r *Reusable) Terminate(ctx context.Context) error {
 
 func (r *Reusable) run(
 	ctx context.Context,
-	migrations migrations.Migrations,
-	initialQueries ...Query,
+	mig migrations.Migrations,
+	initialQueries ...migrations.Query,
 ) (db *sql.DB, term func(), err error) {
 	r.runDaemonOnce.Do(r.runDaemon)
 
@@ -113,7 +113,7 @@ func (r *Reusable) run(
 		return nil, func() {}, fmt.Errorf("enter to reuse container, %w", err)
 	}
 
-	db, term, err = r.reuse(ctx, pgCnt, migrations, initialQueries...)
+	db, term, err = r.reuse(ctx, pgCnt, mig, initialQueries...)
 	if err != nil {
 		return db, term, fmt.Errorf("reuse container, %w", err)
 	}
@@ -124,8 +124,8 @@ func (r *Reusable) run(
 func (r *Reusable) reuse(
 	ctx context.Context,
 	pgCnt Container,
-	migrations migrations.Migrations,
-	initialQueries ...Query,
+	mig migrations.Migrations,
+	initialQueries ...migrations.Query,
 ) (db *sql.DB, term func(), err error) {
 	term = r.dm.Exit
 
@@ -144,15 +144,15 @@ func (r *Reusable) reuse(
 		r.dm.Exit()
 	}
 
-	if migrations != nil {
-		err = migrations.Up(ctx, db)
+	if mig != nil {
+		err = mig.Up(ctx, db)
 		if err != nil {
 			return db, term, fmt.Errorf("up migrations, %w", err)
 		}
 	}
 
 	for _, initialQuery := range initialQueries {
-		err = execQuery(ctx, db, initialQuery)
+		err = migrations.ExecQuery(ctx, db, initialQuery)
 		if err != nil {
 			return db, term, err
 		}
